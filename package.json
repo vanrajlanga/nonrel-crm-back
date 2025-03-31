@@ -1,0 +1,32 @@
+{
+  "name": "consultantcrm",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "nodemon src/app.js",
+    "dev": "nodemon src/app.js",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "seed": "node src/seeders/userSeeder.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "mysql2": "^3.6.1",
+    "sequelize": "^6.33.0",
+    "multer": "^1.4.5-lts.2"
+  },
+  "devDependencies": {
+    "eslint": "^9.23.0",
+    "nodemon": "^3.1.9",
+    "prettier": "^3.5.3"
+  }
+}
