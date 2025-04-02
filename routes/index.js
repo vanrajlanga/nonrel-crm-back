@@ -48,6 +48,13 @@ const {
   getCompanyJobs
 } = require('../controllers/companyController');
 
+const {
+  createAgreement,
+  getAgreement,
+  updateAgreement,
+  deleteAgreement
+} = require("../controllers/agreementDetailsController");
+
 // Auth routes
 router.post('/auth/signup', signup);
 router.post('/auth/login', login);
@@ -86,5 +93,11 @@ router.get('/companies/:id/jobs', protect, getCompanyJobs);
 router.post('/companies/:id/jobs', protect, authorizeRoles('admin'), addJobPosting);
 router.put('/companies/:companyId/jobs/:jobId', protect, authorizeRoles('admin'), updateJobPosting);
 router.delete('/companies/:companyId/jobs/:jobId', protect, authorizeRoles('admin'), deleteJobPosting);
+
+// Agreement routes
+router.post("/consultants/:consultantId/agreement", protect, authorizeRoles("admin"), createAgreement);
+router.get("/consultants/:consultantId/agreement", protect, authorizeRoles("admin"), getAgreement);
+router.put("/consultants/:consultantId/agreement", protect, authorizeRoles("admin"), updateAgreement);
+router.delete("/consultants/:consultantId/agreement", protect, authorizeRoles("admin"), deleteAgreement);
 
 module.exports = router;

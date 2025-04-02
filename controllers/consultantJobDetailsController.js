@@ -62,6 +62,7 @@ exports.createJobDetails = async (req, res, next) => {
         position: jobDetails.jobType,
         dateOfJoining: jobDetails.dateOfJoining,
         feesStatus: jobDetails.feesStatus,
+        isAgreement: jobDetails.isAgreement,
         createdBy: {
           id: jobDetails.createdBy,
           name: jobDetails.createdByName
@@ -100,6 +101,7 @@ exports.getJobDetails = async (req, res, next) => {
       "jobType", 
       "dateOfJoining", 
       "feesStatus",
+      "isAgreement",
       "createdBy",
       "createdByName"
     ];
@@ -132,6 +134,7 @@ exports.getJobDetails = async (req, res, next) => {
       position: jobDetails.jobType,
       dateOfJoining: jobDetails.dateOfJoining,
       feesStatus: jobDetails.feesStatus,
+      isAgreement: jobDetails.isAgreement,
       createdBy: {
         id: jobDetails.createdBy,
         name: jobDetails.createdByName
@@ -191,6 +194,7 @@ exports.updateJobDetails = async (req, res, next) => {
       "jobType", 
       "dateOfJoining", 
       "feesStatus",
+      "isAgreement",
       "createdBy",
       "createdByName"
     ];
@@ -217,6 +221,7 @@ exports.updateJobDetails = async (req, res, next) => {
       position: updatedJobDetails.jobType,
       dateOfJoining: updatedJobDetails.dateOfJoining,
       feesStatus: updatedJobDetails.feesStatus,
+      isAgreement: updatedJobDetails.isAgreement,
       createdBy: {
         id: updatedJobDetails.createdBy,
         name: updatedJobDetails.createdByName
@@ -252,6 +257,7 @@ exports.deleteJobDetails = async (req, res, next) => {
       "jobType", 
       "dateOfJoining", 
       "feesStatus",
+      "isAgreement",
       "createdBy",
       "createdByName"
     ];
@@ -284,6 +290,7 @@ exports.deleteJobDetails = async (req, res, next) => {
       position: jobDetails.jobType,
       dateOfJoining: jobDetails.dateOfJoining,
       feesStatus: jobDetails.feesStatus,
+      isAgreement: jobDetails.isAgreement,
       createdBy: {
         id: jobDetails.createdBy,
         name: jobDetails.createdByName

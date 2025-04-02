@@ -15,6 +15,11 @@ const ConsultantJobDetails = sequelize.define(
       allowNull: false,
       comment: "Name of the company",
     },
+    isAgreement: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      comment: "Whether agreement has been made",
+    },
     totalFees: {
       type: DataTypes.FLOAT,
       allowNull: true,
