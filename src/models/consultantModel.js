@@ -6,77 +6,141 @@ const Consultant = sequelize.define('Consultant', {
     type: DataTypes.STRING,
     allowNull: false
   },
-  email: {
+  technology: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  dateOfBirth: {
+    type: DataTypes.DATE,
+    allowNull: false
+  },
+  stateOfResidence: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    comment: 'Which state you live in?'
+  },
+  visaStatus: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    comment: 'Current Visa Status'
+  },
+  maritalStatus: {
     type: DataTypes.STRING,
     allowNull: false
   },
   phone: {
-    type: DataTypes.STRING
+    type: DataTypes.STRING,
+    allowNull: false
   },
-  registrationFee: {
-    type: DataTypes.FLOAT
+  email: {
+    type: DataTypes.STRING,
+    allowNull: false
   },
-  registrationDate: {
-    type: DataTypes.DATE
+  currentAddress: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  usaLandingDate: {
+    type: DataTypes.DATE,
+    allowNull: false,
+    comment: 'Date of Landing in USA'
+  },
+  // USA IT Experience
+  hasUsaItExperience: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    comment: 'Do you have any IT Work Experience in USA?'
+  },
+  usaFirstExperience: {
+    type: DataTypes.TEXT
+  },
+  usaSecondExperience: {
+    type: DataTypes.TEXT
+  },
+  usaOtherExperiences: {
+    type: DataTypes.TEXT,
+    comment: 'Other Experiences List here (if any)'
+  },
+  // Outside USA IT Experience
+  hasOutsideUsaItExperience: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    comment: 'Do you have any IT work experience Outside USA?'
+  },
+  outsideUsaFirstExperience: {
+    type: DataTypes.TEXT
+  },
+  outsideUsaSecondExperience: {
+    type: DataTypes.TEXT
+  },
+  outsideUsaOtherExperiences: {
+    type: DataTypes.TEXT,
+    comment: 'Other Experiences List here (if any)'
+  },
+  // USA Education
+  hasUsaEducation: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    comment: 'Do you have Education in USA?'
+  },
+  usaPgDiploma: {
+    type: DataTypes.TEXT,
+    comment: 'PG-Diploma'
+  },
+  usaMastersDegree: {
+    type: DataTypes.TEXT,
+    comment: 'Masters Degree'
+  },
+  usaOtherCertifications: {
+    type: DataTypes.TEXT,
+    comment: 'Other degrees/Certifications (if any)'
+  },
+  // Outside USA Education
+  hasOutsideUsaEducation: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    comment: 'Do you have any Educational Background outside USA?'
+  },
+  outsideUsaBachelorsDegree: {
+    type: DataTypes.TEXT,
+    comment: 'Bachelors Degree'
+  },
+  outsideUsaMastersDegree: {
+    type: DataTypes.TEXT,
+    comment: 'Masters Degree'
+  },
+  outsideUsaOtherCertifications: {
+    type: DataTypes.TEXT,
+    comment: 'Other degrees/Certifications (if any)'
+  },
+  // Documents
+  passportId: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    comment: 'Please upload your Passport ID'
+  },
+  termsAccepted: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    allowNull: false,
+    comment: 'I have read and agree to the Terms and Conditions'
   },
   registrationProof: {
-    type: DataTypes.TEXT // Using TEXT for storing base64 strings
+    type: DataTypes.TEXT,
+    comment: 'Upload your payment proof (screenshot of Zelle/Wire transfer confirmation)'
   },
   paymentStatus: {
     type: DataTypes.BOOLEAN,
-    defaultValue: false
+    defaultValue: false,
+    comment: 'Payment verification status'
   },
-  onboardingFee: {
-    type: DataTypes.FLOAT
-  },
-  onboardingDate: {
-    type: DataTypes.DATE
-  },
-  onboardingProof: {
-    type: DataTypes.TEXT
-  },
-  consultantSalary: {
-    type: DataTypes.FLOAT
-  },
-  dateOfJoining: {
-    type: DataTypes.DATE
-  },
-  contractDuration: {
-    type: DataTypes.INTEGER
-  },
-  monthlyFee: {
-    type: DataTypes.FLOAT
-  },
-  monthlyStartDate: {
-    type: DataTypes.DATE
-  },
-  monthlyDueDay: {
-    type: DataTypes.INTEGER
+  isPlaced: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    comment: 'Indicates if consultant has been placed in a job'
   }
 }, {
   timestamps: true
 });
 
-// Create a separate model for extra services
-const ExtraService = sequelize.define('ExtraService', {
-  description: {
-    type: DataTypes.STRING
-  },
-  fee: {
-    type: DataTypes.FLOAT
-  },
-  paymentDate: {
-    type: DataTypes.DATE
-  },
-  proof: {
-    type: DataTypes.TEXT
-  }
-}, {
-  timestamps: true
-});
-
-// Set up the relationship
-Consultant.hasMany(ExtraService, { onDelete: 'CASCADE' });
-ExtraService.belongsTo(Consultant);
-
-module.exports = { Consultant, ExtraService };
+module.exports = { Consultant };
