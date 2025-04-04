@@ -7,9 +7,9 @@ exports.createAgreement = async (req, res, next) => {
   try {
     const { consultantId } = req.params;
 
-    // Only admin can create agreements
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ message: "Only admin can create agreements" });
+    // Only superAdmin can create agreements
+    if (req.user.role !== 'superAdmin') {
+      return res.status(403).json({ message: "Only superAdmin can create agreements" });
     }
 
     // Find the consultant job details with consultant info
@@ -184,9 +184,9 @@ exports.updateAgreement = async (req, res, next) => {
   try {
     const { consultantId } = req.params;
 
-    // Only admin can update agreements
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ message: "Only admin can update agreements" });
+    // Only superAdmin can update agreements
+    if (req.user.role !== 'superAdmin') {
+      return res.status(403).json({ message: "Only superAdmin can update agreements" });
     }
 
     const jobDetails = await ConsultantJobDetails.findOne({
@@ -238,9 +238,9 @@ exports.deleteAgreement = async (req, res, next) => {
   try {
     const { consultantId } = req.params;
 
-    // Only admin can delete agreements
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ message: "Only admin can delete agreements" });
+    // Only superAdmin can delete agreements
+    if (req.user.role !== 'superAdmin') {
+      return res.status(403).json({ message: "Only superAdmin can delete agreements" });
     }
 
     const jobDetails = await ConsultantJobDetails.findOne({

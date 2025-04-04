@@ -21,13 +21,19 @@ const User = sequelize.define(
       allowNull: false,
     },
     role: {
-      type: DataTypes.ENUM("user", "team", "admin"),
-      defaultValue: "user",
+      type: DataTypes.ENUM(
+        "superAdmin",
+        "coordinator",
+        "resumeBuilder",
+        "Support",
+        "Candidate"
+      ),
+      defaultValue: "Candidate",
     },
   },
   {
     timestamps: true,
-    // Remove indexes configuration completely to avoid key creation
+    indexes: [], // Empty array instead of false
     hooks: {
       beforeCreate: async (user) => {
         if (user.password) {

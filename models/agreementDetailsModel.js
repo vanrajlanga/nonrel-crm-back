@@ -15,7 +15,7 @@ const AgreementDetails = sequelize.define(
       allowNull: false,
       validate: {
         min: 1,
-        max: 31
+        max: 31,
       },
       comment: "Day of month when EMI is due",
     },
@@ -35,8 +35,8 @@ const AgreementDetails = sequelize.define(
       comment: "Next EMI due date",
     },
     status: {
-      type: DataTypes.ENUM('active', 'completed', 'terminated'),
-      defaultValue: 'active',
+      type: DataTypes.ENUM("active", "completed", "terminated"),
+      defaultValue: "active",
       comment: "Status of the agreement",
     },
     consultantJobDetailsId: {
@@ -51,54 +51,63 @@ const AgreementDetails = sequelize.define(
     createdBy: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      comment: "ID of the admin who created this agreement"
+      comment: "ID of the superAdmin who created this agreement",
     },
     createdByName: {
       type: DataTypes.STRING,
       allowNull: false,
-      comment: "Name of the admin who created this agreement"
-    }
+      comment: "Name of the superAdmin who created this agreement",
+    },
   },
   {
     timestamps: true,
+    indexes: [], // Empty array instead of false
     hooks: {
       beforeCreate: async (agreement) => {
         // Calculate the next EMI due date based on emiDate
         const today = new Date();
-        const nextEmiDate = new Date(today.getFullYear(), today.getMonth(), agreement.emiDate);
-        
+        const nextEmiDate = new Date(
+          today.getFullYear(),
+          today.getMonth(),
+          agreement.emiDate
+        );
+
         // If today's date is past this month's EMI date, set for next month
         if (today.getDate() >= agreement.emiDate) {
           nextEmiDate.setMonth(nextEmiDate.getMonth() + 1);
         }
-        
+
         agreement.nextEmiDueDate = nextEmiDate;
       },
       beforeUpdate: async (agreement) => {
         // Recalculate next EMI due date if emiDate is changed
-        if (agreement.changed('emiDate')) {
+        if (agreement.changed("emiDate")) {
           const today = new Date();
-          const nextEmiDate = new Date(today.getFullYear(), today.getMonth(), agreement.emiDate);
-          
+          const nextEmiDate = new Date(
+            today.getFullYear(),
+            today.getMonth(),
+            agreement.emiDate
+          );
+
           if (today.getDate() >= agreement.emiDate) {
             nextEmiDate.setMonth(nextEmiDate.getMonth() + 1);
           }
-          
+
           agreement.nextEmiDueDate = nextEmiDate;
         }
-      }
-    }
+      },
+    },
   }
 );
 
 // Set up one-to-one relationship
 ConsultantJobDetails.hasOne(AgreementDetails, {
   foreignKey: "consultantJobDetailsId",
-  as: "agreementDetails"
+  as: "agreementDetails",
 });
 
 AgreementDetails.belongsTo(ConsultantJobDetails, {
-  foreignKey: "consultantJobDetailsId"
+  foreignKey: "consultantJobDetailsId",
 });
 
-module.exports = { AgreementDetails }; 
+module.exports = { AgreementDetails };

@@ -37,8 +37,8 @@ const ConsultantJobDetails = sequelize.define(
       comment: "Remaining fees to be collected",
     },
     feesStatus: {
-      type: DataTypes.ENUM('pending', 'partial', 'completed'),
-      defaultValue: 'pending',
+      type: DataTypes.ENUM("pending", "partial", "completed"),
+      defaultValue: "pending",
       comment: "Status of fees collection",
     },
     dateOfJoining: {
@@ -53,45 +53,47 @@ const ConsultantJobDetails = sequelize.define(
         model: Consultant,
         key: "id",
       },
-      unique: true,
       comment: "Foreign key to Consultant table",
     },
     createdBy: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      comment: "ID of the user who created this record"
+      comment: "ID of the user who created this record",
     },
     createdByName: {
       type: DataTypes.STRING,
       allowNull: false,
-      comment: "Name of the user who created this record"
-    }
+      comment: "Name of the user who created this record",
+    },
   },
   {
     timestamps: true,
+    indexes: [], // Empty array instead of false
     hooks: {
       beforeSave: async (jobDetails) => {
         // Calculate remaining fees and update status
         if (jobDetails.totalFees !== undefined) {
-          jobDetails.remainingFees = jobDetails.totalFees - (jobDetails.receivedFees || 0);
-          
+          jobDetails.remainingFees =
+            jobDetails.totalFees - (jobDetails.receivedFees || 0);
+
           // Update fees status
           if (jobDetails.remainingFees === 0 && jobDetails.totalFees > 0) {
-            jobDetails.feesStatus = 'completed';
+            jobDetails.feesStatus = "completed";
           } else if (jobDetails.receivedFees > 0) {
-            jobDetails.feesStatus = 'partial';
+            jobDetails.feesStatus = "partial";
           } else {
-            jobDetails.feesStatus = 'pending';
+            jobDetails.feesStatus = "pending";
           }
         }
-      }
-    }
+      },
+    },
   }
 );
 
 // Set up one-to-one relationship with proper foreign key configuration
 Consultant.hasOne(ConsultantJobDetails, {
   foreignKey: "consultantId",
+  unique: true, // Add unique constraint at the association level instead
 });
 
 ConsultantJobDetails.belongsTo(Consultant, {

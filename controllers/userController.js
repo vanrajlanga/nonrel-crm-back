@@ -1,13 +1,35 @@
 const User = require('../models/userModel');
 const { Op } = require('sequelize');
 
-// Get all users - only accessible by admin
+// Valid roles
+const VALID_ROLES = ['superAdmin', 'coordinator', 'resumeBuilder', 'Support', 'Candidate'];
+
+// Get all users - only accessible by superAdmin
 const getUsers = async (req, res) => {
   try {
+    const { role } = req.query;
+    let whereClause = {};
+
+    // If role is provided and valid, filter by role
+    if (role) {
+      if (!VALID_ROLES.includes(role)) {
+        return res.status(400).json({ 
+          message: `Invalid role. Role must be one of: ${VALID_ROLES.join(', ')}`
+        });
+      }
+      whereClause.role = role;
+    }
+
     const users = await User.findAll({
-      attributes: { exclude: ['password'] }
+      where: whereClause,
+      attributes: { exclude: ['password'] },
+      order: [['createdAt', 'DESC']] // Most recent first
     });
-    res.status(200).json(users);
+
+    res.status(200).json({
+      count: users.length,
+      users: users
+    });
   } catch (error) {
     console.error('Error fetching users:', error);
     res.status(500).json({ message: 'Server error' });
@@ -41,6 +63,13 @@ const createUser = async (req, res) => {
     if (!username || !email || !password) {
       return res.status(400).json({ message: 'Please provide username, email and password' });
     }
+
+    // Validate role if provided
+    if (role && !VALID_ROLES.includes(role)) {
+      return res.status(400).json({ 
+        message: `Invalid role. Role must be one of: ${VALID_ROLES.join(', ')}`
+      });
+    }
     
     // Check if user already exists
     const userExists = await User.findOne({
@@ -62,7 +91,7 @@ const createUser = async (req, res) => {
       username,
       email,
       password,
-      role: role || 'user'
+      role: role || 'Candidate'
     });
     
     // Return user without password
@@ -89,12 +118,19 @@ const updateUser = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
     
+    // Validate role if provided
+    if (role && !VALID_ROLES.includes(role)) {
+      return res.status(400).json({ 
+        message: `Invalid role. Role must be one of: ${VALID_ROLES.join(', ')}`
+      });
+    }
+
     // Update fields
     const updateData = {};
     if (username) updateData.username = username;
     if (email) updateData.email = email;
     if (password) updateData.password = password;
-    if (role && ['user', 'team', 'admin'].includes(role)) updateData.role = role;
+    if (role) updateData.role = role;
     
     await user.update(updateData);
     

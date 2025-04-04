@@ -9,6 +9,9 @@ const generateToken = (userId) => {
   return jwt.sign({ id: userId }, jwtSecret, { expiresIn: jwtExpire });
 };
 
+// Valid roles
+const VALID_ROLES = ['superAdmin', 'coordinator', 'resumeBuilder', 'Support', 'Candidate'];
+
 // @desc    Register a new user with role
 // @route   POST /api/auth/signup
 // @access  Public
@@ -21,18 +24,25 @@ exports.signup = async (req, res, next) => {
       return res.status(400).json({ message: 'Please provide username, email, and password.' });
     }
 
+    // Validate role if provided
+    if (role && !VALID_ROLES.includes(role)) {
+      return res.status(400).json({ 
+        message: `Invalid role. Role must be one of: ${VALID_ROLES.join(', ')}`
+      });
+    }
+
     // Check for existing user by email
     const userExists = await User.findOne({ where: { email } });
     if (userExists) {
       return res.status(400).json({ message: 'User already exists.' });
     }
 
-    // Create user
+    // Create user with default role 'Candidate' if no role specified
     const user = await User.create({ 
       username, 
       email, 
       password, 
-      role: role || 'user'
+      role: role || 'Candidate'
     });
     
     res.status(201).json({
