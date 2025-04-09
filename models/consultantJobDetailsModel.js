@@ -41,10 +41,10 @@ const ConsultantJobDetails = sequelize.define(
       defaultValue: "pending",
       comment: "Status of fees collection",
     },
-    dateOfJoining: {
+    dateOfOffer: {
       type: DataTypes.DATE,
       allowNull: false,
-      comment: "Date when consultant joined the job",
+      comment: "Date when consultant received the job offer",
     },
     consultantId: {
       type: DataTypes.INTEGER,

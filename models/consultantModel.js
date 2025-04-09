@@ -148,23 +148,32 @@ const Consultant = sequelize.define(
       allowNull: true,
       references: {
         model: User,
-        key: 'id'
+        key: "id",
       },
-      comment: "ID of the assigned coordinator"
+      comment: "ID of the primary assigned coordinator",
     },
-    assignedSupportId: {
+    assignedCoordinator2Id: {
       type: DataTypes.INTEGER,
       allowNull: true,
       references: {
         model: User,
-        key: 'id'
+        key: "id",
       },
-      comment: "ID of the assigned support staff"
+      comment: "ID of the secondary assigned coordinator",
+    },
+    assignedTeamLeadId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: User,
+        key: "id",
+      },
+      comment: "ID of the assigned team lead",
     },
     assignmentDate: {
       type: DataTypes.DATE,
       allowNull: true,
-      comment: "Date when coordinator and support were assigned"
+      comment: "Date when coordinator and team lead were assigned"
     },
     assignedResumeBuilder: {
       type: DataTypes.INTEGER,
@@ -185,7 +194,45 @@ const Consultant = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: true,
       comment: "URL or path to the uploaded resume PDF"
-    }
+    },
+    createdBy: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: User,
+        key: "id",
+      },
+    },
+    document1: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "Path to first uploaded document"
+    },
+    document2: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "Path to second uploaded document"
+    },
+    document3: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "Path to third uploaded document"
+    },
+    document4: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "Path to fourth uploaded document"
+    },
+    document5: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "Path to fifth uploaded document"
+    },
+    documentVerificationStatus: {
+      type: DataTypes.ENUM('pending', 'verified', 'rejected'),
+      defaultValue: 'pending',
+      allowNull: false
+    },
   },
   {
     timestamps: true,
@@ -198,20 +245,30 @@ const Consultant = sequelize.define(
   }
 );
 
-// Define associations
+// Set up associations
 Consultant.belongsTo(User, {
-  foreignKey: 'assignedCoordinatorId',
-  as: 'coordinator'
+  as: "coordinator",
+  foreignKey: "assignedCoordinatorId",
 });
 
 Consultant.belongsTo(User, {
-  foreignKey: 'assignedSupportId',
-  as: 'support'
+  as: "coordinator2",
+  foreignKey: "assignedCoordinator2Id",
 });
 
 Consultant.belongsTo(User, {
-  foreignKey: 'assignedResumeBuilder',
-  as: 'resumeBuilder'
+  as: "teamLead",
+  foreignKey: "assignedTeamLeadId",
+});
+
+Consultant.belongsTo(User, {
+  as: "resumeBuilder",
+  foreignKey: "assignedResumeBuilder",
+});
+
+Consultant.belongsTo(User, {
+  as: "creator",
+  foreignKey: "createdBy",
 });
 
 module.exports = { Consultant };

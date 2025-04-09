@@ -2,7 +2,17 @@ const User = require('../models/userModel');
 const { Op } = require('sequelize');
 
 // Valid roles
-const VALID_ROLES = ['superAdmin', 'coordinator', 'resumeBuilder', 'Support', 'Candidate'];
+const VALID_ROLES = [
+  'superAdmin',
+  'admin',
+  'HR',
+  'coordinator',
+  'resumeBuilder',
+  'teamLead',
+  'Accounts',
+  'Operational Manager',
+  'Candidate'
+];
 
 // Get all users - only accessible by superAdmin
 const getUsers = async (req, res) => {

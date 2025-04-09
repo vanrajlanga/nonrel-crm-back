@@ -10,7 +10,17 @@ const generateToken = (userId) => {
 };
 
 // Valid roles
-const VALID_ROLES = ['superAdmin', 'coordinator', 'resumeBuilder', 'Support', 'Candidate'];
+const VALID_ROLES = [
+  'superAdmin',
+  'admin',
+  'HR',
+  'coordinator',
+  'resumeBuilder',
+  'teamLead',
+  'Accounts',
+  'Operational Manager',
+  'Candidate'
+];
 
 // @desc    Register a new user with role
 // @route   POST /api/auth/signup

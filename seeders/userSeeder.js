@@ -10,6 +10,18 @@ const initialUsers = [
     role: 'superAdmin'
   },
   {
+    username: 'admin1',
+    email: 'admin@example.com',
+    password: 'admin123',
+    role: 'admin'
+  },
+  {
+    username: 'hr1',
+    email: 'hr@example.com',
+    password: 'hr123',
+    role: 'HR'
+  },
+  {
     username: 'coordinator1',
     email: 'coordinator@example.com',
     password: 'coordinator123',
@@ -22,10 +34,22 @@ const initialUsers = [
     role: 'resumeBuilder'
   },
   {
-    username: 'support1',
-    email: 'support@example.com',
-    password: 'support123',
-    role: 'Support'
+    username: 'teamlead1',
+    email: 'teamlead@example.com',
+    password: 'teamlead123',
+    role: 'teamLead'
+  },
+  {
+    username: 'accounts1',
+    email: 'accounts@example.com',
+    password: 'accounts123',
+    role: 'Accounts'
+  },
+  {
+    username: 'operations1',
+    email: 'operations@example.com',
+    password: 'operations123',
+    role: 'Operational Manager'
   }
 ];
 

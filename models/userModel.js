@@ -23,9 +23,13 @@ const User = sequelize.define(
     role: {
       type: DataTypes.ENUM(
         "superAdmin",
+        "admin",
+        "HR",
         "coordinator",
         "resumeBuilder",
-        "Support",
+        "teamLead",
+        "Accounts",
+        "Operational Manager",
         "Candidate"
       ),
       defaultValue: "Candidate",

@@ -1,232 +1,394 @@
 const { AgreementDetails } = require("../models/agreementDetailsModel");
 const { ConsultantJobDetails } = require("../models/consultantJobDetailsModel");
 const { Consultant } = require("../models/consultantModel");
+const { Op } = require("sequelize");
 
-// Create agreement details
+// Create new agreement
 exports.createAgreement = async (req, res, next) => {
   try {
     const { consultantId } = req.params;
+    const {
+      emiDate,
+      totalSalary,
+      remarks,
+    } = req.body;
 
-    // Only superAdmin can create agreements
-    if (req.user.role !== 'superAdmin') {
-      return res.status(403).json({ message: "Only superAdmin can create agreements" });
+    // Get consultant details first
+    const consultant = await Consultant.findByPk(consultantId);
+    if (!consultant) {
+      return res.status(404).json({
+        success: false,
+        message: "Consultant not found",
+      });
     }
 
-    // Find the consultant job details with consultant info
-    const jobDetails = await ConsultantJobDetails.findOne({
-      where: { consultantId },
-      include: [{
-        model: Consultant,
-        attributes: ["fulllegalname"]
-      }]
-    });
-
-    if (!jobDetails) {
-      return res.status(404).json({ message: "Job details not found" });
-    }
-
-    // Check if agreement already exists
+    // Check if an agreement already exists for this consultant using their unique identifiers
     const existingAgreement = await AgreementDetails.findOne({
-      where: { consultantJobDetailsId: jobDetails.id }
+      where: {
+        [Op.or]: [
+          { consultantName: consultant.fulllegalname },
+          { email: consultant.email }
+        ]
+      }
     });
 
     if (existingAgreement) {
-      return res.status(400).json({ message: "Agreement already exists for this job" });
-    }
-
-    // Validate required fields
-    const requiredFields = ["agreementDate", "emiDate", "emiAmount"];
-    const missingFields = requiredFields.filter(field => !req.body[field]);
-
-    if (missingFields.length > 0) {
       return res.status(400).json({
-        message: "Missing required fields",
-        missingFields
+        success: false,
+        message: `An agreement already exists for consultant ${consultant.fulllegalname} (${consultant.email}). Please delete the existing agreement before creating a new one.`
       });
     }
 
-    // Validate emiDate range
-    if (req.body.emiDate < 1 || req.body.emiDate > 31) {
-      return res.status(400).json({
-        message: "EMI date must be between 1 and 31"
-      });
-    }
-
-    // Validate emiAmount
-    if (req.body.emiAmount <= 0) {
-      return res.status(400).json({
-        message: "EMI amount must be greater than 0"
-      });
-    }
-
-    // Ensure agreementDate is a valid date
-    const agreementDate = new Date(req.body.agreementDate);
-    if (isNaN(agreementDate.getTime())) {
-      return res.status(400).json({
-        message: "Invalid agreement date format"
-      });
-    }
-
-    // Create agreement
-    const agreementData = {
-      agreementDate: agreementDate,
-      emiDate: parseInt(req.body.emiDate),
-      emiAmount: parseFloat(req.body.emiAmount),
-      remarks: req.body.remarks || '',
-      consultantJobDetailsId: jobDetails.id,
-      createdBy: req.user.id,
-      createdByName: req.user.name || req.user.username
-    };
-
-    // Calculate nextEmiDueDate based on agreement date
-    const nextEmiDate = new Date(agreementDate.getFullYear(), agreementDate.getMonth(), agreementData.emiDate);
-    
-    // If agreement date is past this month's EMI date, set for next month
-    if (agreementDate.getDate() >= agreementData.emiDate) {
-      nextEmiDate.setMonth(nextEmiDate.getMonth() + 1);
-    }
-    agreementData.nextEmiDueDate = nextEmiDate;
-
-    console.log('Creating agreement with data:', agreementData);
-
-    const agreement = await AgreementDetails.create(agreementData);
-
-    // Update job details isAgreement flag
-    await jobDetails.update({ isAgreement: true });
-
-    return res.status(201).json({
-      message: "Agreement created successfully",
-      agreement: {
-        id: agreement.id,
-        consultantName: jobDetails.Consultant.fulllegalname,
-        companyName: jobDetails.companyName,
-        jobTitle: jobDetails.jobType,
-        agreementDate: agreement.agreementDate,
-        emiDate: agreement.emiDate,
-        emiAmount: agreement.emiAmount,
-        remarks: agreement.remarks
-      }
-    });
-  } catch (error) {
-    console.error('Error creating agreement:', error);
-    if (error.name === 'SequelizeValidationError') {
-      return res.status(400).json({
-        message: "Validation error",
-        errors: error.errors.map(e => ({
-          field: e.path,
-          message: e.message
-        }))
-      });
-    }
-    if (error.name === 'SequelizeDatabaseError') {
-      return res.status(400).json({
-        message: "Database error",
-        error: error.message
-      });
-    }
-    return res.status(500).json({
-      message: "Error creating agreement",
-      error: error.message
-    });
-  }
-};
-
-// Get agreement details
-exports.getAgreement = async (req, res, next) => {
-  try {
-    const { consultantId } = req.params;
-
+    // Get consultant job details using consultantId
     const jobDetails = await ConsultantJobDetails.findOne({
       where: { consultantId },
       include: [
         {
           model: Consultant,
-          attributes: ["fulllegalname"]
+          attributes: ["fulllegalname", "email", "phone"],
         },
-        {
-          model: AgreementDetails,
-          as: "agreementDetails",
-          attributes: [
-            "id", "agreementDate", "emiDate", "emiAmount",
-            "remarks"
-          ]
-        }
-      ]
+      ],
     });
 
     if (!jobDetails) {
-      return res.status(404).json({ message: "Job details not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Consultant job details not found",
+      });
     }
 
-    if (!jobDetails.agreementDetails) {
-      return res.status(404).json({ message: "No agreement found for this job" });
+    if (!jobDetails.dateOfOffer) {
+      return res.status(400).json({
+        success: false,
+        message: "Date of offer is required in job details",
+      });
     }
 
-    return res.status(200).json({
-      agreement: {
-        id: jobDetails.agreementDetails.id,
-        consultantName: jobDetails.Consultant.fulllegalname,
-        companyName: jobDetails.companyName,
-        jobTitle: jobDetails.jobType,
-        agreementDate: jobDetails.agreementDetails.agreementDate,
-        emiDate: jobDetails.agreementDetails.emiDate,
-        emiAmount: jobDetails.agreementDetails.emiAmount,
-        remarks: jobDetails.agreementDetails.remarks
-      }
+    // Calculate total service fee (typically 8% of total salary)
+    const totalServiceFee = totalSalary * 0.08;
+    
+    // Calculate monthly payment amount (total service fee divided by 8 months)
+    const monthlyPaymentAmount = totalServiceFee / 8;
+
+    // Create agreement details
+    const agreementDetails = await AgreementDetails.create({
+      consultantJobDetailsId: jobDetails.id,
+      emiDate,
+      totalSalary,
+      totalServiceFee,
+      monthlyPaymentAmount,
+      remarks,
+      consultantName: jobDetails.Consultant.fulllegalname,
+      email: jobDetails.Consultant.email,
+      phone: jobDetails.Consultant.phone,
+      jobStartDate: jobDetails.dateOfOffer,
+      createdBy: req.user.id,
+      // Set due dates for each month
+      month1DueDate: new Date(jobDetails.dateOfOffer),
+      month2DueDate: new Date(new Date(jobDetails.dateOfOffer).setMonth(new Date(jobDetails.dateOfOffer).getMonth() + 1)),
+      month3DueDate: new Date(new Date(jobDetails.dateOfOffer).setMonth(new Date(jobDetails.dateOfOffer).getMonth() + 2)),
+      month4DueDate: new Date(new Date(jobDetails.dateOfOffer).setMonth(new Date(jobDetails.dateOfOffer).getMonth() + 3)),
+      month5DueDate: new Date(new Date(jobDetails.dateOfOffer).setMonth(new Date(jobDetails.dateOfOffer).getMonth() + 4)),
+      month6DueDate: new Date(new Date(jobDetails.dateOfOffer).setMonth(new Date(jobDetails.dateOfOffer).getMonth() + 5)),
+      month7DueDate: new Date(new Date(jobDetails.dateOfOffer).setMonth(new Date(jobDetails.dateOfOffer).getMonth() + 6)),
+      month8DueDate: new Date(new Date(jobDetails.dateOfOffer).setMonth(new Date(jobDetails.dateOfOffer).getMonth() + 7)),
+      // Set initial payment status
+      nextDueDate: new Date(jobDetails.dateOfOffer),
+      remainingBalance: totalServiceFee,
+      totalPaidSoFar: 0,
+      paymentCompletionStatus: "in_progress"
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Agreement created successfully",
+      agreementDetails,
     });
   } catch (error) {
     next(error);
   }
 };
 
-// Update agreement details
-exports.updateAgreement = async (req, res, next) => {
+// Create new agreement details
+exports.createAgreementDetails = async (req, res, next) => {
+  try {
+    const {
+      consultantJobDetailsId,
+      emiDate,
+      totalSalary,
+      remarks,
+    } = req.body;
+
+    // Get consultant job details to fetch consultant information
+    const jobDetails = await ConsultantJobDetails.findByPk(consultantJobDetailsId, {
+      include: [
+        {
+          model: Consultant,
+          attributes: ["fulllegalname", "email", "phone"],
+        },
+      ],
+    });
+
+    if (!jobDetails) {
+      return res.status(404).json({
+        success: false,
+        message: "Consultant job details not found",
+      });
+    }
+
+    // Create agreement details
+    const agreementDetails = await AgreementDetails.create({
+      consultantJobDetailsId,
+      emiDate,
+      totalSalary,
+      remarks,
+      consultantName: jobDetails.Consultant.fulllegalname,
+      email: jobDetails.Consultant.email,
+      phone: jobDetails.Consultant.phone,
+      jobStartDate: jobDetails.startDate,
+      createdBy: req.user.id,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Agreement details created successfully",
+      agreementDetails,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get all agreement details
+exports.getAllAgreementDetails = async (req, res, next) => {
+  try {
+    const agreementDetails = await AgreementDetails.findAll({
+      include: [
+        {
+          model: ConsultantJobDetails,
+          as: "ConsultantJobDetail",
+          include: [
+            {
+              model: Consultant,
+              attributes: ["fulllegalname", "email", "phone"],
+            },
+          ],
+        },
+      ],
+    });
+
+    return res.status(200).json(agreementDetails);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get agreement details by ID
+exports.getAgreementDetailsById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const agreementDetails = await AgreementDetails.findByPk(id, {
+      include: [
+        {
+          model: ConsultantJobDetails,
+          as: "jobDetails",
+          include: [
+            {
+              model: Consultant,
+              attributes: ["fulllegalname", "email", "phone"],
+            },
+          ],
+        },
+      ],
+    });
+
+    if (!agreementDetails) {
+      return res.status(404).json({
+        success: false,
+        message: "Agreement details not found",
+      });
+    }
+
+    return res.status(200).json(agreementDetails);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Update payment for a specific month
+exports.updatePayment = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const {
+      monthNumber,
+      amountReceived,
+      receivedDate,
+      notes,
+    } = req.body;
+
+    const agreementDetails = await AgreementDetails.findByPk(id);
+
+    if (!agreementDetails) {
+      return res.status(404).json({
+        success: false,
+        message: "Agreement details not found",
+      });
+    }
+
+    // Update payment details for the specified month
+    agreementDetails[`month${monthNumber}AmountReceived`] = amountReceived;
+    agreementDetails[`month${monthNumber}ReceivedDate`] = receivedDate;
+    agreementDetails[`month${monthNumber}Notes`] = notes;
+    agreementDetails[`month${monthNumber}Status`] = "paid";
+
+    // Update total paid and remaining balance
+    agreementDetails.totalPaidSoFar = Object.keys(agreementDetails.toJSON())
+      .filter(key => key.startsWith("month") && key.endsWith("AmountReceived"))
+      .reduce((sum, key) => sum + (agreementDetails[key] || 0), 0);
+
+    agreementDetails.remainingBalance = agreementDetails.totalServiceFee - agreementDetails.totalPaidSoFar;
+
+    // Update next due date
+    const currentMonth = parseInt(monthNumber);
+    if (currentMonth < 8) {
+      agreementDetails.nextDueDate = agreementDetails[`month${currentMonth + 1}DueDate`];
+    }
+
+    // Update payment completion status
+    if (agreementDetails.remainingBalance <= 0) {
+      agreementDetails.paymentCompletionStatus = "completed";
+    }
+
+    await agreementDetails.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Payment updated successfully",
+      agreementDetails,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Update job lost date
+exports.updateJobLostDate = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { jobLostDate } = req.body;
+
+    const agreementDetails = await AgreementDetails.findByPk(id);
+
+    if (!agreementDetails) {
+      return res.status(404).json({
+        success: false,
+        message: "Agreement details not found",
+      });
+    }
+
+    agreementDetails.jobLostDate = jobLostDate;
+    agreementDetails.paymentCompletionStatus = "terminated";
+
+    await agreementDetails.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Job lost date updated successfully",
+      agreementDetails,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get agreement by consultant ID
+exports.getAgreement = async (req, res, next) => {
   try {
     const { consultantId } = req.params;
 
-    // Only superAdmin can update agreements
-    if (req.user.role !== 'superAdmin') {
-      return res.status(403).json({ message: "Only superAdmin can update agreements" });
-    }
-
+    // First find the job details for the consultant
     const jobDetails = await ConsultantJobDetails.findOne({
       where: { consultantId },
       include: [
         {
           model: Consultant,
-          attributes: ["fulllegalname"]
+          attributes: ["fulllegalname", "email", "phone"],
         },
-        {
-          model: AgreementDetails,
-          as: "agreementDetails"
-        }
-      ]
+      ],
     });
 
-    if (!jobDetails || !jobDetails.agreementDetails) {
-      return res.status(404).json({ message: "Agreement not found" });
+    if (!jobDetails) {
+      return res.status(404).json({
+        success: false,
+        message: "Consultant job details not found",
+      });
     }
 
-    // Update agreement
-    const updateData = { ...req.body };
-    delete updateData.createdBy;
-    delete updateData.createdByName;
-    delete updateData.consultantJobDetailsId;
+    // Then find the agreement using the job details ID
+    const agreement = await AgreementDetails.findOne({
+      where: { consultantJobDetailsId: jobDetails.id },
+      include: [
+        {
+          model: ConsultantJobDetails,
+          include: [
+            {
+              model: Consultant,
+              attributes: ["fulllegalname", "email", "phone"],
+            },
+          ],
+        },
+      ],
+    });
 
-    await jobDetails.agreementDetails.update(updateData);
+    if (!agreement) {
+      return res.status(404).json({
+        success: false,
+        message: "Agreement not found",
+      });
+    }
 
     return res.status(200).json({
+      success: true,
+      agreement,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Update agreement
+exports.updateAgreement = async (req, res, next) => {
+  try {
+    const { consultantId } = req.params;
+    const {
+      emiDate,
+      totalSalary,
+      remarks,
+    } = req.body;
+
+    const agreement = await AgreementDetails.findOne({
+      where: { consultantJobDetailsId: consultantId },
+    });
+
+    if (!agreement) {
+      return res.status(404).json({
+        success: false,
+        message: "Agreement not found",
+      });
+    }
+
+    // Update agreement details
+    await agreement.update({
+      emiDate,
+      totalSalary,
+      remarks,
+    });
+
+    return res.status(200).json({
+      success: true,
       message: "Agreement updated successfully",
-      agreement: {
-        id: jobDetails.agreementDetails.id,
-        consultantName: jobDetails.Consultant.fulllegalname,
-        companyName: jobDetails.companyName,
-        jobTitle: jobDetails.jobType,
-        agreementDate: jobDetails.agreementDetails.agreementDate,
-        emiDate: jobDetails.agreementDetails.emiDate,
-        emiAmount: jobDetails.agreementDetails.emiAmount,
-        remarks: jobDetails.agreementDetails.remarks
-      }
+      agreement,
     });
   } catch (error) {
     next(error);
@@ -238,50 +400,35 @@ exports.deleteAgreement = async (req, res, next) => {
   try {
     const { consultantId } = req.params;
 
-    // Only superAdmin can delete agreements
-    if (req.user.role !== 'superAdmin') {
-      return res.status(403).json({ message: "Only superAdmin can delete agreements" });
-    }
-
+    // First find the job details for the consultant
     const jobDetails = await ConsultantJobDetails.findOne({
       where: { consultantId },
-      include: [
-        {
-          model: Consultant,
-          attributes: ["fulllegalname"]
-        },
-        {
-          model: AgreementDetails,
-          as: "agreementDetails"
-        }
-      ]
     });
 
-    if (!jobDetails || !jobDetails.agreementDetails) {
-      return res.status(404).json({ message: "Agreement not found" });
+    if (!jobDetails) {
+      return res.status(404).json({
+        success: false,
+        message: "Consultant job details not found",
+      });
     }
 
-    // Store agreement details before deletion
-    const deletedAgreement = {
-      id: jobDetails.agreementDetails.id,
-      consultantName: jobDetails.Consultant.fulllegalname,
-      companyName: jobDetails.companyName,
-      jobTitle: jobDetails.jobType,
-      agreementDate: jobDetails.agreementDetails.agreementDate,
-      emiDate: jobDetails.agreementDetails.emiDate,
-      emiAmount: jobDetails.agreementDetails.emiAmount,
-      remarks: jobDetails.agreementDetails.remarks
-    };
+    // Then find and delete the agreement using the job details ID
+    const agreement = await AgreementDetails.findOne({
+      where: { consultantJobDetailsId: jobDetails.id },
+    });
 
-    // Delete agreement
-    await jobDetails.agreementDetails.destroy();
+    if (!agreement) {
+      return res.status(404).json({
+        success: false,
+        message: "Agreement not found",
+      });
+    }
 
-    // Update job details isAgreement flag
-    await jobDetails.update({ isAgreement: false });
+    await agreement.destroy();
 
     return res.status(200).json({
+      success: true,
       message: "Agreement deleted successfully",
-      deletedAgreement
     });
   } catch (error) {
     next(error);

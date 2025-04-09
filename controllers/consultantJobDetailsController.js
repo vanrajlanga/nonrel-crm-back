@@ -16,10 +16,10 @@ exports.createJobDetails = async (req, res, next) => {
     // Check user permissions with detailed logging
     if (req.user.role !== 'superAdmin' && 
         req.user.role !== 'coordinator' && 
-        req.user.role !== 'Support') {
+        req.user.role !== 'teamLead') {
       console.log('Permission denied: Invalid role', req.user.role);
       return res.status(403).json({ 
-        message: "Access forbidden: Only superAdmin, coordinator, and support staff can create job details",
+        message: "Access forbidden: Only superAdmin, coordinator, and team lead can create job details",
         currentRole: req.user.role 
       });
     }
@@ -31,14 +31,7 @@ exports.createJobDetails = async (req, res, next) => {
       return res.status(404).json({ message: "Consultant not found" });
     }
 
-    // Log assignment information
-    console.log('Consultant assignments:', {
-      consultantId: consultantId,
-      assignedCoordinatorId: consultant.assignedCoordinatorId,
-      assignedSupportId: consultant.assignedSupportId,
-      requestingUserId: req.user.id
-    });
-
+   
     // For non-superAdmin users, check if they are assigned to this consultant
     if (req.user.role !== 'superAdmin') {
       if (req.user.role === 'coordinator') {
@@ -53,16 +46,16 @@ exports.createJobDetails = async (req, res, next) => {
             assignedCoordinatorId: consultant.assignedCoordinatorId
           });
         }
-      } else if (req.user.role === 'Support') {
-        if (consultant.assignedSupportId !== req.user.id) {
-          console.log('Support access denied:', {
+      } else if (req.user.role === 'teamLead') {
+        if (consultant.assignedTeamLeadId !== req.user.id) {
+          console.log('Team Lead access denied:', {
             userId: req.user.id,
-            assignedSupportId: consultant.assignedSupportId
+            assignedTeamLeadId: consultant.assignedTeamLeadId
           });
           return res.status(403).json({ 
-            message: "Access forbidden: You are not assigned as the support staff for this consultant",
+            message: "Access forbidden: You are not assigned as the team lead for this consultant",
             yourId: req.user.id,
-            assignedSupportId: consultant.assignedSupportId
+            assignedTeamLeadId: consultant.assignedTeamLeadId
           });
         }
       }
@@ -80,7 +73,7 @@ exports.createJobDetails = async (req, res, next) => {
     }
 
     // Validate required fields
-    const requiredFields = ["companyName", "jobType", "dateOfJoining"];
+    const requiredFields = ["companyName", "jobType", "dateOfOffer"];
     const missingFields = requiredFields.filter((field) => !req.body[field]);
 
     if (missingFields.length > 0) {
@@ -93,7 +86,7 @@ exports.createJobDetails = async (req, res, next) => {
 
     // Only allow superAdmin to set fees related fields
     const jobData = { ...req.body };
-    if (req.user.role !== 'superAdmin') {
+    if (req.user.role !== 'superAdmin' && req.user.role !== 'Accounts' && req.user.role !== 'admin') {
       delete jobData.totalFees;
       delete jobData.receivedFees;
     }
@@ -123,7 +116,7 @@ exports.createJobDetails = async (req, res, next) => {
         id: jobDetails.id,
         companyName: jobDetails.companyName,
         position: jobDetails.jobType,
-        dateOfJoining: jobDetails.dateOfJoining,
+        dateOfOffer: jobDetails.dateOfOffer,
         feesStatus: jobDetails.feesStatus,
         isAgreement: jobDetails.isAgreement,
         createdBy: {
@@ -139,7 +132,7 @@ exports.createJobDetails = async (req, res, next) => {
     };
 
     // Add detailed fees information for superAdmin only
-    if (req.user.role === 'superAdmin') {
+    if (req.user.role === 'superAdmin' || req.user.role === 'Accounts' || req.user.role === 'admin') {
       response.jobDetails.feesInfo = {
         totalFees: jobDetails.totalFees,
         receivedFees: jobDetails.receivedFees,
@@ -162,13 +155,13 @@ exports.getJobDetails = async (req, res, next) => {
     const attributes = [
       "companyName", 
       "jobType", 
-      "dateOfJoining", 
+      "dateOfOffer", 
       "feesStatus",
       "isAgreement",
       "createdBy",
       "createdByName"
     ];
-    if (req.user.role === 'superAdmin') {
+    if (req.user.role === 'superAdmin' || req.user.role === 'Accounts' || req.user.role === 'admin') {
       attributes.push("totalFees", "receivedFees", "remainingFees");
     }
 
@@ -179,15 +172,15 @@ exports.getJobDetails = async (req, res, next) => {
     }
 
     // For non-superAdmin users, check if they are assigned to this consultant
-    if (req.user.role !== 'superAdmin') {
+    if (req.user.role !== 'superAdmin' && req.user.role !== 'Accounts' && req.user.role !== 'admin') {
       if (req.user.role === 'coordinator' && consultant.assignedCoordinatorId !== req.user.id) {
         return res.status(403).json({ 
           message: "Access forbidden: You are not assigned as the coordinator for this consultant"
         });
       }
-      if (req.user.role === 'Support' && consultant.assignedSupportId !== req.user.id) {
+      if (req.user.role === 'teamLead' && consultant.assignedTeamLeadId !== req.user.id) {
         return res.status(403).json({ 
-          message: "Access forbidden: You are not assigned as the support staff for this consultant"
+          message: "Access forbidden: You are not assigned as the team lead for this consultant"
         });
       }
       if (req.user.role === 'resumeBuilder' && consultant.assignedResumeBuilder !== req.user.id) {
@@ -220,7 +213,7 @@ exports.getJobDetails = async (req, res, next) => {
       email: jobDetails.Consultant.email,
       companyName: jobDetails.companyName,
       position: jobDetails.jobType,
-      dateOfJoining: jobDetails.dateOfJoining,
+      dateOfOffer: jobDetails.dateOfOffer,
       feesStatus: jobDetails.feesStatus,
       isAgreement: jobDetails.isAgreement,
       isPlaced: jobDetails.Consultant.isPlaced,
@@ -232,7 +225,7 @@ exports.getJobDetails = async (req, res, next) => {
     };
 
     // Add detailed fees information for superAdmin only
-    if (req.user.role === 'superAdmin') {
+    if (req.user.role === 'superAdmin' || req.user.role === 'Accounts' || req.user.role === 'admin') {
       formattedResponse.feesInfo = {
         totalFees: jobDetails.totalFees,
         receivedFees: jobDetails.receivedFees,
@@ -301,7 +294,7 @@ exports.updateJobDetails = async (req, res, next) => {
     }
 
     // Handle payment verification status reversal
-    if (undoPaymentVerification === true && req.user.role === 'superAdmin') {
+    if (undoPaymentVerification === true && (req.user.role === 'superAdmin' || req.user.role === 'Accounts' || req.user.role === 'admin')) {
       await Consultant.update(
         { paymentStatus: false },
         { where: { id: consultantId } }
@@ -313,7 +306,7 @@ exports.updateJobDetails = async (req, res, next) => {
     delete updateData.undoPlacement;  // Remove from updateData
     delete updateData.undoPaymentVerification;  // Remove from updateData
     
-    if (req.user.role !== 'superAdmin') {
+    if (req.user.role !== 'superAdmin' && req.user.role !== 'Accounts' && req.user.role !== 'admin') {
       delete updateData.totalFees;
       delete updateData.receivedFees;
       delete updateData.remainingFees;
@@ -331,13 +324,13 @@ exports.updateJobDetails = async (req, res, next) => {
     const attributes = [
       "companyName", 
       "jobType", 
-      "dateOfJoining", 
+      "dateOfOffer", 
       "feesStatus",
       "isAgreement",
       "createdBy",
       "createdByName"
     ];
-    if (req.user.role === 'superAdmin') {
+    if (req.user.role === 'superAdmin' || req.user.role === 'Accounts' || req.user.role === 'admin') {
       attributes.push("totalFees", "receivedFees", "remainingFees");
     }
 
@@ -359,7 +352,7 @@ exports.updateJobDetails = async (req, res, next) => {
       email: updatedJobDetails.Consultant.email,
       companyName: updatedJobDetails.companyName,
       position: updatedJobDetails.jobType,
-      dateOfJoining: updatedJobDetails.dateOfJoining,
+      dateOfOffer: updatedJobDetails.dateOfOffer,
       feesStatus: updatedJobDetails.feesStatus,
       isAgreement: updatedJobDetails.isAgreement,
       isPlaced: updatedJobDetails.Consultant.isPlaced,
@@ -371,7 +364,7 @@ exports.updateJobDetails = async (req, res, next) => {
     };
 
     // Add detailed fees information for superAdmin only
-    if (req.user.role === 'superAdmin') {
+    if (req.user.role === 'superAdmin' || req.user.role === 'Accounts' || req.user.role === 'admin') {
       formattedResponse.feesInfo = {
         totalFees: updatedJobDetails.totalFees,
         receivedFees: updatedJobDetails.receivedFees,
@@ -397,13 +390,13 @@ exports.deleteJobDetails = async (req, res, next) => {
     const attributes = [
       "companyName", 
       "jobType", 
-      "dateOfJoining", 
+      "dateOfOffer", 
       "feesStatus",
       "isAgreement",
       "createdBy",
       "createdByName"
     ];
-    if (req.user.role === 'superAdmin') {
+    if (req.user.role === 'superAdmin' || req.user.role === 'Accounts' || req.user.role === 'admin') {
       attributes.push("totalFees", "receivedFees", "remainingFees");
     }
 
@@ -430,7 +423,7 @@ exports.deleteJobDetails = async (req, res, next) => {
       email: jobDetails.Consultant.email,
       companyName: jobDetails.companyName,
       position: jobDetails.jobType,
-      dateOfJoining: jobDetails.dateOfJoining,
+      dateOfOffer: jobDetails.dateOfOffer,
       feesStatus: jobDetails.feesStatus,
       isAgreement: jobDetails.isAgreement,
       createdBy: {
@@ -440,7 +433,7 @@ exports.deleteJobDetails = async (req, res, next) => {
     };
 
     // Add detailed fees information for superAdmin only
-    if (req.user.role === 'superAdmin') {
+    if (req.user.role === 'superAdmin' || req.user.role === 'Accounts' || req.user.role === 'admin') {
       formattedResponse.feesInfo = {
         totalFees: jobDetails.totalFees,
         receivedFees: jobDetails.receivedFees,
@@ -468,7 +461,7 @@ exports.deleteJobDetails = async (req, res, next) => {
 exports.getAllPlacedJobDetails = async (req, res, next) => {
   try {
     // Only superAdmin can access this endpoint
-    if (req.user.role !== 'superAdmin') {
+    if (req.user.role !== 'superAdmin' && req.user.role !== 'Accounts' && req.user.role !== 'admin') {
       return res.status(403).json({ 
         message: "Access forbidden: Only superAdmin can view all placed consultants"
       });
@@ -478,7 +471,7 @@ exports.getAllPlacedJobDetails = async (req, res, next) => {
       "consultantId",
       "companyName", 
       "jobType", 
-      "dateOfJoining", 
+      "dateOfOffer", 
       "feesStatus",
       "isAgreement",
       "createdBy",
@@ -497,7 +490,7 @@ exports.getAllPlacedJobDetails = async (req, res, next) => {
         },
       ],
       attributes,
-      order: [['dateOfJoining', 'DESC']] // Most recent first
+      order: [['dateOfOffer', 'DESC']] // Most recent first
     });
 
     const formattedResponse = allJobDetails.map(jobDetail => ({
@@ -506,7 +499,7 @@ exports.getAllPlacedJobDetails = async (req, res, next) => {
       email: jobDetail.Consultant.email,
       companyName: jobDetail.companyName,
       position: jobDetail.jobType,
-      dateOfJoining: jobDetail.dateOfJoining,
+      dateOfOffer: jobDetail.dateOfOffer,
       feesStatus: jobDetail.feesStatus,
       isAgreement: jobDetail.isAgreement,
       isPlaced: jobDetail.Consultant.isPlaced,
