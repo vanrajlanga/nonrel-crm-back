@@ -132,135 +132,156 @@ exports.uploadDocument = async (req, res, next) => {
   }
 };
 
+// Get all consultants with pagination, search, and filters
 exports.getAllConsultants = async (req, res, next) => {
   try {
-		let whereClause = {};
+    let whereClause = {};
 
-		// Handle different roles
-		if (req.user.role === "resumeBuilder") {
-			// Show consultants that either have no resume builder or are assigned to this builder
-			whereClause = {
-				[Op.or]: [
-					{ assignedResumeBuilder: null },
-					{ assignedResumeBuilder: req.user.id },
-				],
-			};
-		} else if (req.user.role !== "superAdmin" && req.user.role !== "Accounts" && req.user.role !== "admin") {
-			// For coordinator and team lead, show only their assigned consultants
-			whereClause = {
-				[Op.or]: [
-					{ assignedCoordinatorId: req.user.id },
-					{ assignedCoordinator2Id: req.user.id },
-					{ assignedTeamLeadId: req.user.id },
-				],
-			};
-		}
+    // Handle different roles
+    if (req.user.role === "resumeBuilder") {
+      // Show consultants that either have no resume builder or are assigned to this builder
+      whereClause = {
+        [Op.or]: [
+          { assignedResumeBuilder: null },
+          { assignedResumeBuilder: req.user.id },
+        ],
+      };
+    } else if (req.user.role !== "superAdmin" && req.user.role !== "Accounts" && req.user.role !== "admin") {
+      // For coordinator and team lead, show only their assigned consultants
+      whereClause = {
+        [Op.or]: [
+          { assignedCoordinatorId: req.user.id },
+          { assignedCoordinator2Id: req.user.id },
+          { assignedTeamLeadId: req.user.id },
+        ],
+      };
+    }
 
     const consultants = await Consultant.findAll({
-			where: whereClause,
+      where: whereClause,
       attributes: {
-				exclude: ["registrationProof"],
-			},
-			include: [
-				{
-					model: User,
-					as: "coordinator",
-					attributes: ["id", "username", "email"],
-				},
-				{
-					model: User,
-					as: "coordinator2",
-					attributes: ["id", "username", "email"],
-				},
-				{
-					model: User,
-					as: "teamLead",
-					attributes: ["id", "username", "email"],
-				},
-				{
-					model: User,
-					as: "resumeBuilder",
-					attributes: ["id", "username", "email"],
-				},
-				{
-					model: User,
-					as: "creator",
-					attributes: ["id", "username", "email", "role"],
-				},
-			],
-		});
+        exclude: ["registrationProof"],
+      },
+      include: [
+        {
+          model: User,
+          as: "coordinator",
+          attributes: ["id", "username", "email"],
+        },
+        {
+          model: User,
+          as: "coordinator2",
+          attributes: ["id", "username", "email"],
+        },
+        {
+          model: User,
+          as: "teamLead",
+          attributes: ["id", "username", "email"],
+        },
+        {
+          model: User,
+          as: "resumeBuilder",
+          attributes: ["id", "username", "email"],
+        },
+        {
+          model: User,
+          as: "creator",
+          attributes: ["id", "username", "email", "role"],
+        },
+        {
+          model: ConsultantJobDetails,
+          attributes: ["isJob"],
+          required: false
+        }
+      ],
+    });
 
-		// Transform the response to include coordinators as an array
-		const transformedConsultants = consultants.map(consultant => {
-			const consultantData = consultant.toJSON();
-			const coordinators = [];
-			
-			// Add primary coordinator if exists
-			if (consultantData.coordinator && consultantData.coordinator.id) {
-				coordinators.push({
-					id: consultantData.coordinator.id,
-					username: consultantData.coordinator.username,
-					email: consultantData.coordinator.email
-				});
-			}
+    // Transform the response to include coordinators as an array
+    const transformedConsultants = consultants.map(consultant => {
+      const consultantData = consultant.toJSON();
+      const coordinators = [];
 
-			// Add secondary coordinator if exists
-			if (consultantData.coordinator2 && consultantData.coordinator2.id) {
-				coordinators.push({
-					id: consultantData.coordinator2.id,
-					username: consultantData.coordinator2.username,
-					email: consultantData.coordinator2.email
-				});
-			}
+      // Add primary coordinator if exists
+      if (consultantData.coordinator && consultantData.coordinator.id) {
+        coordinators.push({
+          id: consultantData.coordinator.id,
+          username: consultantData.coordinator.username,
+          email: consultantData.coordinator.email
+        });
+      }
 
-			// Remove individual coordinator fields
-			delete consultantData.coordinator;
-			delete consultantData.coordinator2;
+      // Add secondary coordinator if exists
+      if (consultantData.coordinator2 && consultantData.coordinator2.id) {
+        coordinators.push({
+          id: consultantData.coordinator2.id,
+          username: consultantData.coordinator2.username,
+          email: consultantData.coordinator2.email
+        });
+      }
 
-			// Add coordinators array
-			consultantData.coordinators = coordinators;
+      // Remove individual coordinator fields
+      delete consultantData.coordinator;
+      delete consultantData.coordinator2;
 
-			return consultantData;
-		});
-    
+      // Add coordinators array
+      consultantData.coordinators = coordinators;
+
+      // Add isJob field
+      consultantData.isJob = consultantData.ConsultantJobDetails?.isJob || false;
+      delete consultantData.ConsultantJobDetails;
+
+      return consultantData;
+    });
+
     return res.status(200).json(transformedConsultants);
   } catch (error) {
-		console.error("Error in getAllConsultants:", error);
+    console.error("Error in getAllConsultants:", error);
     next(error);
   }
 };
 
+// Get a single consultant by ID
 exports.getConsultantById = async (req, res, next) => {
   try {
-		const consultant = await checkConsultantAuthorization(
-			req.params.id,
-			req.user.id,
-			req.user.role
-		);
+    const consultant = await checkConsultantAuthorization(
+      req.params.id,
+      req.user.id,
+      req.user.role
+    );
 
-		const consultantWithDetails = await Consultant.findByPk(req.params.id, {
-			include: [
-				{
-					model: User,
-					as: "coordinator",
-					attributes: ["id", "username", "email"],
-				},
-				{
-					model: User,
-					as: "teamLead",
-					attributes: ["id", "username", "email"],
-				},
-			],
-		});
+    const consultantWithDetails = await Consultant.findByPk(req.params.id, {
+      include: [
+        {
+          model: User,
+          as: "coordinator",
+          attributes: ["id", "username", "email"],
+        },
+        {
+          model: User,
+          as: "teamLead",
+          attributes: ["id", "username", "email"],
+        },
+        {
+          model: ConsultantJobDetails,
+          attributes: ["isJob"],
+          required: false
+        }
+      ],
+    });
 
-		return res.status(200).json(consultantWithDetails);
-	} catch (error) {
-		if (error.message === "You are not authorized to access this consultant") {
-			return res.status(403).json({ message: error.message });
-		}
-		if (error.message === "Consultant not found") {
-			return res.status(404).json({ message: error.message });
-		}
+    // Add isJob to the response
+    const response = consultantWithDetails.toJSON();
+    response.isJob = response.ConsultantJobDetails?.isJob || false;
+    delete response.ConsultantJobDetails;
+
+    return res.status(200).json(response);
+  } catch (error) {
+    if (error.message === "You are not authorized to access this consultant") {
+      return res.status(403).json({ message: error.message });
+    }
+    if (error.message === "Consultant not found") {
+      return res.status(404).json({ message: error.message });
+    }
     next(error);
   }
 };
@@ -1002,7 +1023,7 @@ exports.getMyProfile = async (req, res, next) => {
 			});
 		}
 
-		// Check if consultant is placed and has agreement
+		// Check if consultant is placed
 		const jobDetails = await ConsultantJobDetails.findOne({
 			where: { consultantId: consultant.id },
 		});

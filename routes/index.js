@@ -48,7 +48,8 @@ const {
   getJobDetails,
   updateJobDetails,
   deleteJobDetails,
-  getAllPlacedJobDetails
+  getAllPlacedJobDetails,
+  updatePlacementStatus
 } = require('../controllers/consultantJobDetailsController');
 
 // Import company controller
@@ -121,6 +122,14 @@ router.post('/consultants/:consultantId/job-details', protect, authorizeRoles('s
 router.get('/consultants/:consultantId/job-details', protect, authorizeRoles('superAdmin', 'admin', 'coordinator', 'resumeBuilder', 'teamLead', 'Accounts'), getJobDetails);
 router.put('/consultants/:consultantId/job-details', protect, authorizeRoles('superAdmin', 'Accounts', 'admin'), updateJobDetails);
 router.delete('/consultants/:consultantId/job-details', protect, authorizeRoles('superAdmin'), deleteJobDetails);
+
+// Update placement status
+router.put(
+  "/consultants/:consultantId/placement-status",
+  protect,
+  authorizeRoles("superAdmin", "coordinator", "teamLead"),
+  updatePlacementStatus
+);
 
 // Company routes
 router.post('/companies', protect, authorizeRoles('superAdmin', 'admin', 'coordinator'), createCompany);

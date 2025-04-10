@@ -15,6 +15,16 @@ const ConsultantJobDetails = sequelize.define(
       allowNull: false,
       comment: "Name of the company",
     },
+    isJob: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true,
+      comment: "Indicates if this is an active job",
+    },
+    placementStatus: {
+      type: DataTypes.ENUM("placed", "hold", "active"),
+      defaultValue: "placed",
+      comment: "Status of the consultant's placement",
+    },
     isAgreement: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
@@ -85,7 +95,52 @@ const ConsultantJobDetails = sequelize.define(
             jobDetails.feesStatus = "pending";
           }
         }
+
+        // If isJob is false, set placementStatus to "active"
+        if (jobDetails.isJob === false) {
+          jobDetails.placementStatus = "active";
+        }
       },
+      afterSave: async (jobDetails) => {
+        // Update consultant's status based on placementStatus and isJob
+        if (jobDetails.changed('placementStatus') || jobDetails.changed('isJob')) {
+          const consultant = await Consultant.findByPk(jobDetails.consultantId);
+          if (consultant) {
+            if (jobDetails.isJob === false) {
+              await consultant.update({
+                isPlaced: false,
+                isHold: false,
+                isActive: true
+              });
+            } else {
+              await consultant.update({
+                isPlaced: jobDetails.placementStatus === "placed",
+                isHold: jobDetails.placementStatus === "hold",
+                isActive: jobDetails.placementStatus === "active"
+              });
+            }
+          }
+        }
+      },
+      afterCreate: async (jobDetails) => {
+        // When job details are created, update consultant's status
+        const consultant = await Consultant.findByPk(jobDetails.consultantId);
+        if (consultant) {
+          if (jobDetails.isJob === false) {
+            await consultant.update({
+              isPlaced: false,
+              isHold: false,
+              isActive: true
+            });
+          } else {
+            await consultant.update({
+              isPlaced: jobDetails.placementStatus === "placed",
+              isHold: jobDetails.placementStatus === "hold",
+              isActive: jobDetails.placementStatus === "active"
+            });
+          }
+        }
+      }
     },
   }
 );

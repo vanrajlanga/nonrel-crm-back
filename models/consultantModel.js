@@ -143,6 +143,16 @@ const Consultant = sequelize.define(
       defaultValue: false,
       comment: "Indicates if consultant has been placed in a job",
     },
+    isHold: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      comment: "Indicates if consultant is on hold",
+    },
+    isActive: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      comment: "Indicates if consultant is active",
+    },
     assignedCoordinatorId: {
       type: DataTypes.INTEGER,
       allowNull: true,
@@ -269,6 +279,23 @@ Consultant.belongsTo(User, {
 Consultant.belongsTo(User, {
   as: "creator",
   foreignKey: "createdBy",
+});
+
+// Add hooks for status validation
+Consultant.addHook('beforeValidate', async (consultant) => {
+  // Count how many status fields are true
+  const trueCount = [consultant.isPlaced, consultant.isHold, consultant.isActive]
+    .filter(Boolean).length;
+
+  // If more than one status is true, throw an error
+  if (trueCount > 1) {
+    throw new Error('Only one status (isPlaced, isHold, isActive) can be true at a time');
+  }
+
+  // If all are false, set isActive to true by default
+  if (trueCount === 0) {
+    consultant.isActive = true;
+  }
 });
 
 module.exports = { Consultant };

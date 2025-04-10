@@ -31,7 +31,6 @@ exports.createJobDetails = async (req, res, next) => {
       return res.status(404).json({ message: "Consultant not found" });
     }
 
-   
     // For non-superAdmin users, check if they are assigned to this consultant
     if (req.user.role !== 'superAdmin') {
       if (req.user.role === 'coordinator') {
@@ -91,6 +90,11 @@ exports.createJobDetails = async (req, res, next) => {
       delete jobData.receivedFees;
     }
 
+    // Ensure isJob is set to true for new job details
+    jobData.isJob = true;
+    // Set placementStatus to "active" by default
+    jobData.placementStatus = "active";
+
     // Add creator information
     jobData.createdBy = req.user.id;
     jobData.createdByName = req.user.name || req.user.username;
@@ -100,14 +104,18 @@ exports.createJobDetails = async (req, res, next) => {
       consultantId
     });
 
-    // Create job details and update consultant status
+    // Create job details
     const jobDetails = await ConsultantJobDetails.create({
       ...jobData,
       consultantId
     });
 
-    // Update consultant's placement status
-    await consultant.update({ isPlaced: true });
+    // Update consultant's status to active
+    await consultant.update({ 
+      isPlaced: false,
+      isHold: false,
+      isActive: true
+    });
 
     // Format response based on user role
     const response = {
@@ -117,6 +125,8 @@ exports.createJobDetails = async (req, res, next) => {
         companyName: jobDetails.companyName,
         position: jobDetails.jobType,
         dateOfOffer: jobDetails.dateOfOffer,
+        isJob: jobDetails.isJob,
+        placementStatus: jobDetails.placementStatus,
         feesStatus: jobDetails.feesStatus,
         isAgreement: jobDetails.isAgreement,
         createdBy: {
@@ -127,6 +137,8 @@ exports.createJobDetails = async (req, res, next) => {
           id: consultant.id,
           fullName: consultant.fulllegalname,
           isPlaced: consultant.isPlaced,
+          isHold: consultant.isHold,
+          isActive: consultant.isActive
         }
       }
     };
@@ -159,7 +171,9 @@ exports.getJobDetails = async (req, res, next) => {
       "feesStatus",
       "isAgreement",
       "createdBy",
-      "createdByName"
+      "createdByName",
+      "isJob",
+      "placementStatus"
     ];
     if (req.user.role === 'superAdmin' || req.user.role === 'Accounts' || req.user.role === 'admin') {
       attributes.push("totalFees", "receivedFees", "remainingFees");
@@ -218,6 +232,8 @@ exports.getJobDetails = async (req, res, next) => {
       isAgreement: jobDetails.isAgreement,
       isPlaced: jobDetails.Consultant.isPlaced,
       paymentStatus: jobDetails.Consultant.paymentStatus,
+      isJob: jobDetails.isJob,
+      placementStatus: jobDetails.placementStatus,
       createdBy: {
         id: jobDetails.createdBy,
         name: jobDetails.createdByName
@@ -381,76 +397,78 @@ exports.updateJobDetails = async (req, res, next) => {
   }
 };
 
-// Delete job details
+// Delete job details and reset consultant status
 exports.deleteJobDetails = async (req, res, next) => {
   try {
     const { consultantId } = req.params;
 
-    // Include fees in attributes based on role
-    const attributes = [
-      "companyName", 
-      "jobType", 
-      "dateOfOffer", 
-      "feesStatus",
-      "isAgreement",
-      "createdBy",
-      "createdByName"
-    ];
-    if (req.user.role === 'superAdmin' || req.user.role === 'Accounts' || req.user.role === 'admin') {
-      attributes.push("totalFees", "receivedFees", "remainingFees");
+    // Check user permissions
+    if (req.user.role !== 'superAdmin' && 
+        req.user.role !== 'coordinator' && 
+        req.user.role !== 'teamLead') {
+      return res.status(403).json({ 
+        message: "Access forbidden: Only superAdmin, coordinator, and team lead can delete job details"
+      });
     }
 
+    // Find the consultant
+    const consultant = await Consultant.findByPk(consultantId);
+    if (!consultant) {
+      return res.status(404).json({ message: "Consultant not found" });
+    }
+
+    // For non-superAdmin users, check if they are assigned to this consultant
+    if (req.user.role !== 'superAdmin') {
+      if (req.user.role === 'coordinator') {
+        if (consultant.assignedCoordinatorId !== req.user.id) {
+          return res.status(403).json({ 
+            message: "Access forbidden: You are not assigned as the coordinator for this consultant"
+          });
+        }
+      } else if (req.user.role === 'teamLead') {
+        if (consultant.assignedTeamLeadId !== req.user.id) {
+          return res.status(403).json({ 
+            message: "Access forbidden: You are not assigned as the team lead for this consultant"
+          });
+        }
+      }
+    }
+
+    // Find and delete job details
     const jobDetails = await ConsultantJobDetails.findOne({
-      where: { consultantId },
-      include: [
-        {
-          model: Consultant,
-          attributes: ["fulllegalname", "email"],
-        },
-      ],
-      attributes
+      where: { consultantId }
     });
 
     if (!jobDetails) {
-      return res
-        .status(404)
-        .json({ message: "Job details not found for this consultant" });
-    }
-
-    // Format the response before deleting
-    const formattedResponse = {
-      fullName: jobDetails.Consultant.fulllegalname,
-      email: jobDetails.Consultant.email,
-      companyName: jobDetails.companyName,
-      position: jobDetails.jobType,
-      dateOfOffer: jobDetails.dateOfOffer,
-      feesStatus: jobDetails.feesStatus,
-      isAgreement: jobDetails.isAgreement,
-      createdBy: {
-        id: jobDetails.createdBy,
-        name: jobDetails.createdByName
-      }
-    };
-
-    // Add detailed fees information for superAdmin only
-    if (req.user.role === 'superAdmin' || req.user.role === 'Accounts' || req.user.role === 'admin') {
-      formattedResponse.feesInfo = {
-        totalFees: jobDetails.totalFees,
-        receivedFees: jobDetails.receivedFees,
-        remainingFees: jobDetails.remainingFees
-      };
+      return res.status(404).json({ message: "Job details not found for this consultant" });
     }
 
     // Delete the job details
     await jobDetails.destroy();
 
-    // Update consultant's placement status
-    const consultant = await Consultant.findByPk(consultantId);
-    await consultant.update({ isPlaced: false });
+    // Reset consultant's status and remove staff assignments
+    await consultant.update({
+      isPlaced: false,
+      isHold: false,
+      isActive: false,
+      assignedCoordinatorId: null,
+      assignedCoordinator2Id: null,
+      assignedTeamLeadId: null,
+    });
 
     return res.status(200).json({
-      message: "Job details deleted successfully",
-      deletedJobDetails: formattedResponse
+      message: "Job details deleted successfully and consultant status reset",
+      consultant: {
+        id: consultant.id,
+        fullName: consultant.fulllegalname,
+        isPlaced: false,
+        isHold: false,
+        isActive: false,
+        assignedCoordinatorId: null,
+        assignedCoordinator2Id: null,
+        assignedTeamLeadId: null,
+        assignedResumeBuilder: null
+      }
     });
   } catch (error) {
     next(error);
@@ -520,6 +538,143 @@ exports.getAllPlacedJobDetails = async (req, res, next) => {
       jobDetails: formattedResponse
     });
   } catch (error) {
+    next(error);
+  }
+};
+
+// Update placement status
+exports.updatePlacementStatus = async (req, res, next) => {
+  try {
+    const { consultantId } = req.params;
+    const { placementStatus } = req.body;
+
+    // Validate consultantId
+    if (!consultantId || consultantId === "undefined") {
+      return res.status(400).json({
+        message: "Invalid consultant ID. Please provide a valid consultant ID in the URL.",
+        example: "PUT /api/consultants/123/placement-status"
+      });
+    }
+
+    // Validate placementStatus in request body
+    if (!placementStatus) {
+      return res.status(400).json({
+        message: "Placement status is required in the request body",
+        example: { "placementStatus": "hold" }
+      });
+    }
+
+    // Validate the placement status value
+    if (!["placed", "hold", "active"].includes(placementStatus)) {
+      return res.status(400).json({
+        message: "Invalid placement status. Must be one of: placed, hold, active",
+        validValues: ["placed", "hold", "active"]
+      });
+    }
+
+    console.log('Updating placement status:', {
+      consultantId,
+      placementStatus,
+      userId: req.user.id,
+      userRole: req.user.role
+    });
+
+    // Find the job details
+    const jobDetails = await ConsultantJobDetails.findOne({
+      where: { consultantId },
+      include: [
+        {
+          model: Consultant,
+          attributes: ["id", "fulllegalname", "email"],
+        },
+      ],
+    });
+
+    if (!jobDetails) {
+      return res.status(404).json({
+        message: "Job details not found for this consultant",
+        consultantId,
+        suggestion: "Make sure the consultant exists and has job details created"
+      });
+    }
+
+    // Check if job is active
+    if (jobDetails.isJob === false) {
+      return res.status(400).json({
+        message: "Cannot update placement status: This is not an active job",
+        suggestion: "Set isJob to true before updating placement status"
+      });
+    }
+
+    // Check authorization
+    if (
+      req.user.role !== "superAdmin" &&
+      req.user.role !== "admin" &&
+      req.user.role !== "coordinator" &&
+      req.user.role !== "teamLead"
+    ) {
+      return res.status(403).json({
+        message: "Access forbidden: You are not authorized to update placement status",
+      });
+    }
+
+    // For non-superAdmin users, check if they are assigned to this consultant
+    if (req.user.role !== "superAdmin" && req.user.role !== "admin") {
+      const consultant = await Consultant.findByPk(consultantId);
+      if (!consultant) {
+        return res.status(404).json({ message: "Consultant not found" });
+      }
+
+      if (
+        req.user.role === "coordinator" &&
+        consultant.assignedCoordinatorId !== req.user.id
+      ) {
+        return res.status(403).json({
+          message: "Access forbidden: You are not assigned as the coordinator for this consultant",
+        });
+      }
+      if (
+        req.user.role === "teamLead" &&
+        consultant.assignedTeamLeadId !== req.user.id
+      ) {
+        return res.status(403).json({
+          message: "Access forbidden: You are not assigned as the team lead for this consultant",
+        });
+      }
+    }
+
+    // Update the placement status
+    await jobDetails.update({ placementStatus });
+
+    // Update the consultant's status based on the placement status
+    const consultant = await Consultant.findByPk(consultantId);
+    if (consultant) {
+      await consultant.update({
+        isPlaced: placementStatus === "placed",
+        isHold: placementStatus === "hold",
+        isActive: placementStatus === "active",
+      });
+    }
+
+    res.status(200).json({
+      message: "Placement status updated successfully",
+      jobDetails: {
+        id: jobDetails.id,
+        consultantId: jobDetails.consultantId,
+        isJob: jobDetails.isJob,
+        placementStatus: jobDetails.placementStatus,
+        consultant: {
+          id: consultant.id,
+          fullName: consultant.fulllegalname,
+          email: consultant.email,
+          isPlaced: consultant.isPlaced,
+          isHold: consultant.isHold,
+          isActive: consultant.isActive,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error in updatePlacementStatus:", error);
     next(error);
   }
 };
