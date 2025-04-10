@@ -77,6 +77,14 @@ const {
   deleteAgreement
 } = require("../controllers/agreementDetailsController");
 
+const {
+  createInterviewSchedule,
+  getAllInterviewSchedules,
+  getInterviewScheduleById,
+  updateInterviewSchedule,
+  deleteInterviewSchedule
+} = require("../controllers/interviewScheduleController");
+
 // Auth routes
 router.post('/auth/signup', signup);
 router.post('/auth/login', login);
@@ -156,5 +164,41 @@ router.get('/agreement-details', protect, authorizeRoles('superAdmin', 'admin', 
 router.get('/agreement-details/:id', protect, authorizeRoles('superAdmin', 'admin', 'Accounts'), getAgreementDetailsById);
 router.put('/agreement-details/:id/payment', protect, authorizeRoles('superAdmin', 'admin', 'Accounts'), updatePayment);
 router.put('/agreement-details/:id/job-lost', protect, authorizeRoles('superAdmin', 'admin', 'Accounts'), updateJobLostDate);
+
+// Interview Schedule Routes
+router.post(
+  '/consultants/:consultantId/interviews',
+  protect,
+  authorizeRoles('superAdmin', 'admin', 'coordinator'),
+  createInterviewSchedule
+);
+
+router.get(
+  '/interviews',
+  protect,
+  authorizeRoles('superAdmin', 'admin', 'coordinator'),
+  getAllInterviewSchedules
+);
+
+router.get(
+  '/interviews/:id',
+  protect,
+  authorizeRoles('superAdmin', 'admin', 'coordinator'),
+  getInterviewScheduleById
+);
+
+router.put(
+  '/interviews/:id',
+  protect,
+  authorizeRoles('superAdmin', 'admin', 'coordinator'),
+  updateInterviewSchedule
+);
+
+router.delete(
+  '/interviews/:id',
+  protect,
+  authorizeRoles('superAdmin', 'admin'),
+  deleteInterviewSchedule
+);
 
 module.exports = router;
