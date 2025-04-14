@@ -114,7 +114,8 @@ exports.createJobDetails = async (req, res, next) => {
     await consultant.update({ 
       isPlaced: false,
       isHold: false,
-      isActive: true
+      isActive: true,
+      isOfferPending: false
     });
 
     // Format response based on user role
@@ -138,7 +139,8 @@ exports.createJobDetails = async (req, res, next) => {
           fullName: consultant.fulllegalname,
           isPlaced: consultant.isPlaced,
           isHold: consultant.isHold,
-          isActive: consultant.isActive
+          isActive: consultant.isActive,
+          isOfferPending: consultant.isOfferPending
         }
       }
     };
@@ -451,6 +453,7 @@ exports.deleteJobDetails = async (req, res, next) => {
       isPlaced: false,
       isHold: false,
       isActive: false,
+      isOfferPending: false,
       assignedCoordinatorId: null,
       assignedCoordinator2Id: null,
       assignedTeamLeadId: null,
@@ -464,6 +467,7 @@ exports.deleteJobDetails = async (req, res, next) => {
         isPlaced: false,
         isHold: false,
         isActive: false,
+        isOfferPending: false,
         assignedCoordinatorId: null,
         assignedCoordinator2Id: null,
         assignedTeamLeadId: null,
@@ -565,10 +569,10 @@ exports.updatePlacementStatus = async (req, res, next) => {
     }
 
     // Validate the placement status value
-    if (!["placed", "hold", "active"].includes(placementStatus)) {
+    if (!["placed", "hold", "active", "offerPending"].includes(placementStatus)) {
       return res.status(400).json({
-        message: "Invalid placement status. Must be one of: placed, hold, active",
-        validValues: ["placed", "hold", "active"]
+        message: "Invalid placement status. Must be one of: placed, hold, active, offerPending",
+        validValues: ["placed", "hold", "active", "offerPending"]
       });
     }
 
@@ -653,6 +657,7 @@ exports.updatePlacementStatus = async (req, res, next) => {
         isPlaced: placementStatus === "placed",
         isHold: placementStatus === "hold",
         isActive: placementStatus === "active",
+        isOfferPending: placementStatus === "offerPending"
       });
     }
 
@@ -670,6 +675,7 @@ exports.updatePlacementStatus = async (req, res, next) => {
           isPlaced: consultant.isPlaced,
           isHold: consultant.isHold,
           isActive: consultant.isActive,
+          isOfferPending: consultant.isOfferPending
         },
       },
     });

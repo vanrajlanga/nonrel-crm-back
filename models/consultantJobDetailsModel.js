@@ -21,8 +21,8 @@ const ConsultantJobDetails = sequelize.define(
       comment: "Indicates if this is an active job",
     },
     placementStatus: {
-      type: DataTypes.ENUM("placed", "hold", "active"),
-      defaultValue: "placed",
+      type: DataTypes.ENUM("placed", "hold", "active", "offerPending"),
+      defaultValue: "active",
       comment: "Status of the consultant's placement",
     },
     isAgreement: {
@@ -110,13 +110,15 @@ const ConsultantJobDetails = sequelize.define(
               await consultant.update({
                 isPlaced: false,
                 isHold: false,
-                isActive: true
+                isActive: true,
+                isOfferPending: false
               });
             } else {
               await consultant.update({
                 isPlaced: jobDetails.placementStatus === "placed",
                 isHold: jobDetails.placementStatus === "hold",
-                isActive: jobDetails.placementStatus === "active"
+                isActive: jobDetails.placementStatus === "active",
+                isOfferPending: jobDetails.placementStatus === "offerPending"
               });
             }
           }
@@ -130,13 +132,15 @@ const ConsultantJobDetails = sequelize.define(
             await consultant.update({
               isPlaced: false,
               isHold: false,
-              isActive: true
+              isActive: true,
+              isOfferPending: false
             });
           } else {
             await consultant.update({
               isPlaced: jobDetails.placementStatus === "placed",
               isHold: jobDetails.placementStatus === "hold",
-              isActive: jobDetails.placementStatus === "active"
+              isActive: jobDetails.placementStatus === "active",
+              isOfferPending: jobDetails.placementStatus === "offerPending"
             });
           }
         }

@@ -153,6 +153,21 @@ const Consultant = sequelize.define(
       defaultValue: false,
       comment: "Indicates if consultant is active",
     },
+    isOfferPending: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      comment: "Indicates if consultant has a pending offer",
+    },
+    openForWork: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true,
+      comment: "Indicates if consultant is open for new opportunities",
+    },
+    bgvVerified: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      comment: "Indicates if consultant's background verification is completed",
+    },
     assignedCoordinatorId: {
       type: DataTypes.INTEGER,
       allowNull: true,
@@ -284,12 +299,16 @@ Consultant.belongsTo(User, {
 // Add hooks for status validation
 Consultant.addHook('beforeValidate', async (consultant) => {
   // Count how many status fields are true
-  const trueCount = [consultant.isPlaced, consultant.isHold, consultant.isActive]
-    .filter(Boolean).length;
+  const trueCount = [
+    consultant.isPlaced, 
+    consultant.isHold, 
+    consultant.isActive,
+    consultant.isOfferPending
+  ].filter(Boolean).length;
 
   // If more than one status is true, throw an error
   if (trueCount > 1) {
-    throw new Error('Only one status (isPlaced, isHold, isActive) can be true at a time');
+    throw new Error('Only one status (isPlaced, isHold, isActive, isOfferPending) can be true at a time');
   }
 
   // If all are false, set isActive to true by default

@@ -230,6 +230,9 @@ exports.getAllConsultants = async (req, res, next) => {
       consultantData.isJob = consultantData.ConsultantJobDetails?.isJob || false;
       delete consultantData.ConsultantJobDetails;
 
+      // Add openForWork status to response
+      consultantData.openForWork = consultant.openForWork;
+
       return consultantData;
     });
 
@@ -269,9 +272,10 @@ exports.getConsultantById = async (req, res, next) => {
       ],
     });
 
-    // Add isJob to the response
+    // Add isJob and openForWork to the response
     const response = consultantWithDetails.toJSON();
     response.isJob = response.ConsultantJobDetails?.isJob || false;
+    response.openForWork = consultantWithDetails.openForWork;
     delete response.ConsultantJobDetails;
 
     return res.status(200).json(response);
@@ -1533,6 +1537,76 @@ exports.approveDocumentVerification = async (req, res, next) => {
 		});
   } catch (error) {
 		console.error("Error in approveDocumentVerification:", error);
+    next(error);
+  }
+};
+
+// Update openForWork status
+exports.updateOpenForWorkStatus = async (req, res, next) => {
+  try {
+    const { id: consultantId } = req.params;
+    const { openForWork } = req.body;
+
+    // Validate input
+    if (typeof openForWork !== 'boolean') {
+      return res.status(400).json({
+        message: "openForWork must be a boolean value (true/false)"
+      });
+    }
+
+    const consultant = await checkConsultantAuthorization(
+      consultantId,
+      req.user.id,
+      req.user.role
+    );
+
+    await consultant.update({ openForWork });
+
+    return res.status(200).json({
+      message: `Consultant's open for work status updated to ${openForWork}`,
+      consultant: {
+        id: consultant.id,
+        fullName: consultant.fulllegalname,
+        openForWork: consultant.openForWork
+      }
+    });
+  } catch (error) {
+    console.error("Error in updateOpenForWorkStatus:", error);
+    next(error);
+  }
+};
+
+// Update BGV verification status
+exports.updateBgvStatus = async (req, res, next) => {
+  try {
+    const { id: consultantId } = req.params;
+    const { bgvVerified } = req.body;
+
+    // Validate input
+    if (typeof bgvVerified !== 'boolean') {
+      return res.status(400).json({
+        message: "bgvVerified must be a boolean value (true/false)"
+      });
+    }
+
+    const consultant = await checkConsultantAuthorization(
+      consultantId,
+      req.user.id,
+      req.user.role
+    );
+
+    await consultant.update({ bgvVerified });
+
+    return res.status(200).json({
+      message: `Consultant's BGV verification status updated to ${bgvVerified}`,
+      consultant: {
+        id: consultant.id,
+        fullName: consultant.fulllegalname,
+        bgvVerified: consultant.bgvVerified
+      }
+    });
+  } catch (error) {
+    console.error("Error in updateBgvStatus:", error);
     next(error);
   }
 };

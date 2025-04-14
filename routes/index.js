@@ -40,7 +40,9 @@ const {
   getDocument,
   sendDocumentVerificationRequest,
   getPendingDocumentVerifications,
-  approveDocumentVerification
+  approveDocumentVerification,
+  updateOpenForWorkStatus,
+  updateBgvStatus
 } = require('../controllers/consultantController');
 
 const {
@@ -199,6 +201,22 @@ router.delete(
   protect,
   authorizeRoles('superAdmin', 'admin'),
   deleteInterviewSchedule
+);
+
+// Add route for updating openForWork status
+router.patch(
+  "/consultants/:id/open-for-work",
+  protect,
+  authorizeRoles("superAdmin", "admin"),
+  updateOpenForWorkStatus
+);
+
+// Add route for updating BGV verification status
+router.patch(
+  "/consultants/:id/bgv-status",
+  protect,
+  authorizeRoles("superAdmin", "admin"),
+  updateBgvStatus
 );
 
 module.exports = router;
