@@ -684,3 +684,70 @@ exports.updatePlacementStatus = async (req, res, next) => {
     next(error);
   }
 };
+
+// Reset fees for a consultant's job details
+exports.resetFees = async (req, res, next) => {
+  try {
+    const { consultantId } = req.params;
+
+    // Check user permissions - only superAdmin, admin, and Accounts can reset fees
+    if (req.user.role !== 'superAdmin' && req.user.role !== 'admin' && req.user.role !== 'Accounts') {
+      return res.status(403).json({ 
+        message: "Access forbidden: Only superAdmin, admin, and Accounts can reset fees"
+      });
+    }
+
+    // Find the job details
+    const jobDetails = await ConsultantJobDetails.findOne({
+      where: { consultantId },
+      include: [
+        {
+          model: Consultant,
+          attributes: ["id", "fulllegalname", "email"],
+        },
+      ],
+    });
+
+    if (!jobDetails) {
+      return res.status(404).json({
+        message: "Job details not found for this consultant",
+        consultantId
+      });
+    }
+
+    // Reset only fee-related fields
+    await jobDetails.update({
+      totalFees: 0,
+      receivedFees: 0,
+      remainingFees: 0,
+      feesStatus: "pending"
+    });
+
+    // Return the updated job details
+    return res.status(200).json({
+      message: "Fees reset successfully",
+      jobDetails: {
+        id: jobDetails.id,
+        consultantId: jobDetails.consultantId,
+        consultant: {
+          id: jobDetails.Consultant.id,
+          fullName: jobDetails.Consultant.fulllegalname,
+          email: jobDetails.Consultant.email
+        },
+        feesInfo: {
+          totalFees: 0,
+          receivedFees: 0,
+          remainingFees: 0,
+          feesStatus: "pending"
+        },
+        isAgreement: jobDetails.isAgreement // Return current agreement status without modifying it
+      }
+    });
+
+  } catch (error) {
+    console.error("Error in resetFees:", error);
+    next(error);
+  }
+};
+
+module.exports = exports;

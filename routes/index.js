@@ -51,7 +51,8 @@ const {
   updateJobDetails,
   deleteJobDetails,
   getAllPlacedJobDetails,
-  updatePlacementStatus
+  updatePlacementStatus,
+  resetFees
 } = require('../controllers/consultantJobDetailsController');
 
 // Import company controller
@@ -139,6 +140,14 @@ router.put(
   protect,
   authorizeRoles("superAdmin", "coordinator", "teamLead"),
   updatePlacementStatus
+);
+
+// Add route for resetting fees
+router.post(
+  "/consultants/:consultantId/reset-fees",
+  protect,
+  authorizeRoles("superAdmin", "admin", "Accounts"),
+  resetFees
 );
 
 // Company routes

@@ -99,10 +99,19 @@ exports.createAgreement = async (req, res, next) => {
       paymentCompletionStatus: "in_progress"
     });
 
+    // Update isAgreement in ConsultantJobDetails
+    await jobDetails.update({
+      isAgreement: true
+    });
+
     return res.status(201).json({
       success: true,
-      message: "Agreement created successfully",
+      message: "Agreement created successfully and job details updated",
       agreementDetails,
+      jobDetails: {
+        id: jobDetails.id,
+        isAgreement: true
+      }
     });
   } catch (error) {
     next(error);
@@ -426,9 +435,18 @@ exports.deleteAgreement = async (req, res, next) => {
 
     await agreement.destroy();
 
+    // Update isAgreement in ConsultantJobDetails
+    await jobDetails.update({
+      isAgreement: false
+    });
+
     return res.status(200).json({
       success: true,
-      message: "Agreement deleted successfully",
+      message: "Agreement deleted successfully and job details updated",
+      jobDetails: {
+        id: jobDetails.id,
+        isAgreement: false
+      }
     });
   } catch (error) {
     next(error);
