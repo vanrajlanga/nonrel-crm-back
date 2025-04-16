@@ -277,7 +277,49 @@ const AgreementDetails = sequelize.define(
     month8Notes: {
       type: DataTypes.TEXT,
       allowNull: true,
-      comment: "Month 8 payment notes",
+      comment: "Notes for month 8 payment",
+    },
+
+    // Add proof fields for each month
+    month1Proof: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "Path to proof file for month 1 payment",
+    },
+    month2Proof: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "Path to proof file for month 2 payment",
+    },
+    month3Proof: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "Path to proof file for month 3 payment",
+    },
+    month4Proof: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "Path to proof file for month 4 payment",
+    },
+    month5Proof: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "Path to proof file for month 5 payment",
+    },
+    month6Proof: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "Path to proof file for month 6 payment",
+    },
+    month7Proof: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "Path to proof file for month 7 payment",
+    },
+    month8Proof: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "Path to proof file for month 8 payment",
     },
 
     // Summary Information

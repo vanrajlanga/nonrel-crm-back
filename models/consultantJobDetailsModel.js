@@ -80,13 +80,23 @@ const ConsultantJobDetails = sequelize.define(
     timestamps: true,
     indexes: [], // Empty array instead of false
     hooks: {
+      beforeValidate: async (jobDetails) => {
+        // Always set isJob to true if any status is active
+        const hasActiveStatus = jobDetails.placementStatus === "placed" ||
+                              jobDetails.placementStatus === "hold" ||
+                              jobDetails.placementStatus === "active" ;
+        
+        if (hasActiveStatus) {
+          jobDetails.isJob = true;
+          console.log('Setting isJob to true due to active status:', jobDetails.placementStatus);
+        }
+      },
       beforeSave: async (jobDetails) => {
         // Calculate remaining fees and update status
         if (jobDetails.totalFees !== undefined) {
           jobDetails.remainingFees =
             jobDetails.totalFees - (jobDetails.receivedFees || 0);
 
-          // Update fees status
           if (jobDetails.remainingFees === 0 && jobDetails.totalFees > 0) {
             jobDetails.feesStatus = "completed";
           } else if (jobDetails.receivedFees > 0) {
@@ -96,52 +106,57 @@ const ConsultantJobDetails = sequelize.define(
           }
         }
 
-        // If isJob is false, set placementStatus to "active"
-        if (jobDetails.isJob === false) {
-          jobDetails.placementStatus = "active";
+        // Double check isJob status
+        const hasActiveStatus = jobDetails.placementStatus === "placed" ||
+                              jobDetails.placementStatus === "hold" ||
+                              jobDetails.placementStatus === "active" ;
+        
+        if (hasActiveStatus) {
+          jobDetails.isJob = true;
+          console.log('Confirming isJob is true in beforeSave:', jobDetails.placementStatus);
         }
       },
       afterSave: async (jobDetails) => {
-        // Update consultant's status based on placementStatus and isJob
-        if (jobDetails.changed('placementStatus') || jobDetails.changed('isJob')) {
+        if (jobDetails.changed('placementStatus')) {
           const consultant = await Consultant.findByPk(jobDetails.consultantId);
           if (consultant) {
-            if (jobDetails.isJob === false) {
-              await consultant.update({
-                isPlaced: false,
-                isHold: false,
-                isActive: true,
-                isOfferPending: false
-              });
-            } else {
-              await consultant.update({
-                isPlaced: jobDetails.placementStatus === "placed",
-                isHold: jobDetails.placementStatus === "hold",
-                isActive: jobDetails.placementStatus === "active",
-                isOfferPending: jobDetails.placementStatus === "offerPending"
-              });
+            // Update consultant status
+            await consultant.update({
+              isPlaced: jobDetails.placementStatus === "placed",
+              isHold: jobDetails.placementStatus === "hold",
+              isActive: jobDetails.placementStatus === "active"
+            });
+
+            // Ensure isJob is true if any status is active
+            const hasActiveStatus = jobDetails.placementStatus === "placed" ||
+                                  jobDetails.placementStatus === "hold" ||
+                                  jobDetails.placementStatus === "active" ;
+            
+            if (hasActiveStatus && !jobDetails.isJob) {
+              console.log('Updating isJob to true in afterSave');
+              await jobDetails.update({ isJob: true }, { hooks: false });
             }
           }
         }
       },
       afterCreate: async (jobDetails) => {
-        // When job details are created, update consultant's status
         const consultant = await Consultant.findByPk(jobDetails.consultantId);
         if (consultant) {
-          if (jobDetails.isJob === false) {
-            await consultant.update({
-              isPlaced: false,
-              isHold: false,
-              isActive: true,
-              isOfferPending: false
-            });
-          } else {
-            await consultant.update({
-              isPlaced: jobDetails.placementStatus === "placed",
-              isHold: jobDetails.placementStatus === "hold",
-              isActive: jobDetails.placementStatus === "active",
-              isOfferPending: jobDetails.placementStatus === "offerPending"
-            });
+          // Update consultant status
+          await consultant.update({
+            isPlaced: jobDetails.placementStatus === "placed",
+            isHold: jobDetails.placementStatus === "hold",
+            isActive: jobDetails.placementStatus === "active"
+          });
+
+          // Ensure isJob is true if any status is active
+          const hasActiveStatus = jobDetails.placementStatus === "placed" ||
+                                jobDetails.placementStatus === "hold" ||
+                                jobDetails.placementStatus === "active" ;
+          
+          if (hasActiveStatus && !jobDetails.isJob) {
+            console.log('Updating isJob to true in afterCreate');
+            await jobDetails.update({ isJob: true }, { hooks: false });
           }
         }
       }

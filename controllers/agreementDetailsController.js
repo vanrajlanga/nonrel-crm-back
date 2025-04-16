@@ -2,6 +2,8 @@ const { AgreementDetails } = require("../models/agreementDetailsModel");
 const { ConsultantJobDetails } = require("../models/consultantJobDetailsModel");
 const { Consultant } = require("../models/consultantModel");
 const { Op } = require("sequelize");
+const path = require("path");
+const fs = require("fs");
 
 // Create new agreement
 exports.createAgreement = async (req, res, next) => {
@@ -225,6 +227,99 @@ exports.getAgreementDetailsById = async (req, res, next) => {
   }
 };
 
+// Upload EMI proof for a specific month
+exports.uploadEmiProof = async (req, res, next) => {
+  try {
+    const { consultantId } = req.params;
+    const { monthNumber } = req.body;
+
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Please upload a proof file",
+      });
+    }
+
+    // Get consultant job details first
+    const jobDetails = await ConsultantJobDetails.findOne({
+      where: { consultantId },
+    });
+
+    if (!jobDetails) {
+      return res.status(404).json({
+        success: false,
+        message: "Consultant job details not found",
+      });
+    }
+
+    // Find agreement using job details ID
+    const agreement = await AgreementDetails.findOne({
+      where: { consultantJobDetailsId: jobDetails.id },
+    });
+
+    if (!agreement) {
+      return res.status(404).json({
+        success: false,
+        message: "Agreement not found",
+      });
+    }
+
+    // Check if agreement is active
+    if (!jobDetails.isAgreement) {
+      return res.status(400).json({
+        success: false,
+        message: "No active agreement found for this consultant",
+      });
+    }
+
+    // Validate month number
+    if (!monthNumber || monthNumber < 1 || monthNumber > 8) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid month number. Must be between 1 and 8",
+      });
+    }
+
+    // Generate unique filename
+    const fileExt = path.extname(req.file.originalname);
+    const fileName = `emi-proof-${consultantId}-month${monthNumber}-${Date.now()}${fileExt}`;
+    
+    // Create the proofs directory if it doesn't exist
+    const proofsDir = path.join(__dirname, '../uploads/emi-proofs');
+    if (!fs.existsSync(proofsDir)) {
+      fs.mkdirSync(proofsDir, { recursive: true });
+    }
+
+    // Set up the file paths
+    const filePath = path.join(proofsDir, fileName);
+
+    // Since we're using disk storage, the file is already saved in the temp location
+    // We just need to move it to our target directory
+    fs.renameSync(req.file.path, filePath);
+
+    // Update agreement with proof file path - store just the filename
+    const updateData = {};
+    updateData[`month${monthNumber}Proof`] = fileName;
+    await agreement.update(updateData);
+
+    return res.status(200).json({
+      success: true,
+      message: "EMI proof uploaded successfully",
+      data: {
+        monthNumber,
+        proofFile: `/uploads/emi-proofs/${fileName}`,
+      },
+    });
+  } catch (error) {
+    // Clean up uploaded file if exists
+    if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    console.error("Error in uploadEmiProof:", error);
+    next(error);
+  }
+};
+
 // Update payment for a specific month
 exports.updatePayment = async (req, res, next) => {
   try {
@@ -242,6 +337,15 @@ exports.updatePayment = async (req, res, next) => {
       return res.status(404).json({
         success: false,
         message: "Agreement details not found",
+      });
+    }
+
+    // Check if proof is uploaded for this month
+    const proofField = `month${monthNumber}Proof`;
+    if (!agreementDetails[proofField]) {
+      return res.status(400).json({
+        success: false,
+        message: `Please upload proof for month ${monthNumber} before updating payment`,
       });
     }
 
@@ -311,7 +415,7 @@ exports.updateJobLostDate = async (req, res, next) => {
   }
 };
 
-// Get agreement by consultant ID
+// Get agreement by consultant ID (modified to include proof files)
 exports.getAgreement = async (req, res, next) => {
   try {
     const { consultantId } = req.params;
@@ -357,10 +461,31 @@ exports.getAgreement = async (req, res, next) => {
       });
     }
 
-    return res.status(200).json({
+    // Format payment status and proof information
+    const paymentInfo = [];
+    for (let i = 1; i <= 8; i++) {
+      const proofFile = agreement[`month${i}Proof`];
+      paymentInfo.push({
+        monthNumber: i,
+        status: agreement[`month${i}Status`] || "pending",
+        amountReceived: agreement[`month${i}AmountReceived`] || 0,
+        receivedDate: agreement[`month${i}ReceivedDate`],
+        notes: agreement[`month${i}Notes`],
+        dueDate: agreement[`month${i}DueDate`],
+        proofFile: proofFile ? `/uploads/emi-proofs/${proofFile}` : null,
+      });
+    }
+
+    // Add payment info to response
+    const response = {
       success: true,
-      agreement,
-    });
+      agreement: {
+        ...agreement.toJSON(),
+        paymentInfo,
+      },
+    };
+
+    return res.status(200).json(response);
   } catch (error) {
     next(error);
   }

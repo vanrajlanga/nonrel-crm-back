@@ -68,7 +68,11 @@ exports.createInterviewSchedule = async (req, res, next) => {
     const jobDetails = await ConsultantJobDetails.findOne({
       where: {
         consultantId,
-        isJob: true
+        [Op.or]: [
+          { placementStatus: "placed" },
+          { placementStatus: "hold" },
+          { placementStatus: "active" }
+        ]
       }
     });
 
@@ -111,7 +115,10 @@ exports.createInterviewSchedule = async (req, res, next) => {
         id: jobDetails.id,
         jobPosition: jobDetails.jobType,
         companyName: jobDetails.companyName,
-        isJob: jobDetails.isJob,
+        isJob: jobDetails.isJob || 
+               jobDetails.placementStatus === "placed" ||
+               jobDetails.placementStatus === "hold" ||
+               jobDetails.placementStatus === "active",
         placementStatus: jobDetails.placementStatus
       }
     };
@@ -199,7 +206,10 @@ exports.getAllInterviewSchedules = async (req, res, next) => {
           id: jobDetails.id,
           jobPosition: jobDetails.jobType,
           companyName: jobDetails.companyName,
-          isJob: jobDetails.isJob,
+          isJob: jobDetails.isJob || 
+                 jobDetails.placementStatus === "placed" ||
+                 jobDetails.placementStatus === "hold" ||
+                 jobDetails.placementStatus === "active",
           placementStatus: jobDetails.placementStatus
         } : null
       };
@@ -263,7 +273,10 @@ exports.getInterviewScheduleById = async (req, res, next) => {
         id: jobDetails.id,
         jobPosition: jobDetails.jobType,
         companyName: jobDetails.companyName,
-        isJob: jobDetails.isJob,
+        isJob: jobDetails.isJob || 
+               jobDetails.placementStatus === "placed" ||
+               jobDetails.placementStatus === "hold" ||
+               jobDetails.placementStatus === "active",
         placementStatus: jobDetails.placementStatus
       } : null
     };
@@ -360,7 +373,10 @@ exports.updateInterviewSchedule = async (req, res, next) => {
         id: jobDetails.id,
         jobPosition: jobDetails.jobType,
         companyName: jobDetails.companyName,
-        isJob: jobDetails.isJob,
+        isJob: jobDetails.isJob || 
+               jobDetails.placementStatus === "placed" ||
+               jobDetails.placementStatus === "hold" ||
+               jobDetails.placementStatus === "active",
         placementStatus: jobDetails.placementStatus
       } : null
     };

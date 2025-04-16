@@ -5,6 +5,7 @@ const { Op } = require("sequelize");
 const path = require("path");
 const fs = require("fs");
 const { ConsultantJobDetails } = require("../models/consultantJobDetailsModel");
+const { AgreementDetails } = require("../models/agreementDetailsModel");
 
 // Helper function to check if user is assigned to consultant
 const isUserAssignedToConsultant = (consultant, userId) => {
@@ -102,7 +103,6 @@ exports.uploadDocument = async (req, res, next) => {
 		// Ensure the uploads directory exists
 		if (!fs.existsSync(uploadDir)) {
 			fs.mkdirSync(uploadDir, { recursive: true });
-			console.log(`Created directory: ${uploadDir}`);
 		}
 
 		// Write the file to the uploads folder
@@ -227,7 +227,10 @@ exports.getAllConsultants = async (req, res, next) => {
       consultantData.coordinators = coordinators;
 
       // Add isJob field
-      consultantData.isJob = consultantData.ConsultantJobDetails?.isJob || false;
+      consultantData.isJob = consultantData.ConsultantJobDetails?.isJob || 
+                            consultant.isPlaced || 
+                            consultant.isHold || 
+                            consultant.isActive;
       delete consultantData.ConsultantJobDetails;
 
       // Add openForWork status to response
@@ -274,7 +277,10 @@ exports.getConsultantById = async (req, res, next) => {
 
     // Add isJob and openForWork to the response
     const response = consultantWithDetails.toJSON();
-    response.isJob = response.ConsultantJobDetails?.isJob || false;
+    response.isJob = response.ConsultantJobDetails?.isJob || 
+                    consultantWithDetails.isPlaced || 
+                    consultantWithDetails.isHold || 
+                    consultantWithDetails.isActive;
     response.openForWork = consultantWithDetails.openForWork;
     delete response.ConsultantJobDetails;
 
@@ -354,7 +360,7 @@ exports.verifyPayment = async (req, res, next) => {
 		}
 
 		const consultant = await Consultant.findByPk(consultantId);
-		if (!consultant) {
+      if (!consultant) {
 			return res.status(404).json({ message: "Consultant not found" });
 		}
 
@@ -374,7 +380,7 @@ exports.verifyPayment = async (req, res, next) => {
 		// Handle normal payment verification
     if (verifybtn === true) {
 			await consultant.update({ paymentStatus: true });
-			return res.status(200).json({
+      return res.status(200).json({
 				message: "Payment verified successfully",
 				consultant: {
 					id: consultant.id,
@@ -1018,6 +1024,11 @@ exports.getMyProfile = async (req, res, next) => {
 					as: "creator",
 					attributes: ["id", "username", "email", "role"],
 				},
+				{
+					model: ConsultantJobDetails,
+					attributes: ["isAgreement", "id"],
+					required: false
+				}
 			],
 		});
 
@@ -1027,15 +1038,47 @@ exports.getMyProfile = async (req, res, next) => {
 			});
 		}
 
-		// Check if consultant is placed
+		// Get job details separately to ensure we get the latest data
 		const jobDetails = await ConsultantJobDetails.findOne({
 			where: { consultantId: consultant.id },
+			attributes: ['isAgreement', 'id']
 		});
 
-		const isPlaced = !!jobDetails;
-		const hasAgreement = jobDetails
-			? jobDetails.agreementStatus === "signed"
-			: false;
+		const hasAgreement = jobDetails ? jobDetails.isAgreement : false;
+
+		// Get agreement details if they exist
+		let agreementInfo = null;
+		if (hasAgreement && jobDetails) {
+			const agreement = await AgreementDetails.findOne({
+				where: { consultantJobDetailsId: jobDetails.id }
+			});
+			if (agreement) {
+				// Format monthly payment and proof information
+				const monthlyInfo = [];
+				for (let i = 1; i <= 8; i++) {
+					const proofFile = agreement[`month${i}Proof`];
+					monthlyInfo.push({
+						monthNumber: i,
+						status: agreement[`month${i}Status`] || "pending",
+						amountReceived: agreement[`month${i}AmountReceived`] || 0,
+						receivedDate: agreement[`month${i}ReceivedDate`],
+						notes: agreement[`month${i}Notes`],
+						dueDate: agreement[`month${i}DueDate`],
+						proofFile: proofFile ? `/uploads/emi-proofs/${proofFile}` : null,
+					});
+				}
+
+				agreementInfo = {
+					totalServiceFee: agreement.totalServiceFee,
+					monthlyPaymentAmount: agreement.monthlyPaymentAmount,
+					paymentCompletionStatus: agreement.paymentCompletionStatus,
+					totalPaidSoFar: agreement.totalPaidSoFar,
+					remainingBalance: agreement.remainingBalance,
+					nextDueDate: agreement.nextDueDate,
+					monthlyInfo: monthlyInfo
+				};
+			}
+		}
 
 		// Check if documents are uploaded
 		const hasDocuments =
@@ -1055,8 +1098,9 @@ exports.getMyProfile = async (req, res, next) => {
 				paymentStatus: consultant.paymentStatus,
 				hasResume: consultant.hasResume,
 				hasProof: consultant.hasProof,
-				isPlaced: isPlaced,
+				isPlaced: consultant.isPlaced,
 				hasAgreement: hasAgreement,
+				agreementInfo: agreementInfo,
 				documentVerificationStatus: hasDocuments
 					? consultant.documentVerificationStatus
 					: "not_uploaded",
@@ -1184,17 +1228,10 @@ exports.uploadCandidateDocuments = async (req, res, next) => {
 exports.getDocument = async (req, res, next) => {
 	try {
 		const { id: consultantId, documentName } = req.params;
-		console.log(
-			"Getting document for consultant:",
-			consultantId,
-			"document:",
-			documentName
-		);
 
 		// Find the consultant
 		const consultant = await Consultant.findByPk(consultantId);
 		if (!consultant) {
-			console.log("Consultant not found:", consultantId);
 			return res.status(404).json({ message: "Consultant not found" });
 		}
 
@@ -1210,10 +1247,8 @@ exports.getDocument = async (req, res, next) => {
 
 		// Get the document path
 		const documentPath = consultant[documentField];
-		console.log("Document path from database:", documentPath);
 
 		if (!documentPath) {
-			console.log("Document path not found in database for:", documentField);
 			return res.status(404).json({ message: "Document not found" });
 		}
 
@@ -1229,7 +1264,6 @@ exports.getDocument = async (req, res, next) => {
 
 		// Get the file extension
 		const ext = path.extname(documentPath).toLowerCase();
-		console.log("File extension:", ext);
 
 		// Set appropriate content type based on file extension
 		let contentType = "application/octet-stream";
@@ -1240,7 +1274,6 @@ exports.getDocument = async (req, res, next) => {
 		} else if (ext === ".png") {
 			contentType = "image/png";
 		}
-		console.log("Content type:", contentType);
 
 		// Set response headers
 		res.setHeader("Content-Type", contentType);
@@ -1266,7 +1299,7 @@ exports.getDocument = async (req, res, next) => {
 				}
 			}
 		});
-	} catch (error) {
+  } catch (error) {
 		console.error("Error in getDocument:", error);
 		next(error);
 	}

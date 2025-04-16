@@ -3,6 +3,9 @@ const router = express.Router();
 const { protect } = require('../middleware/authMiddleware');
 const { authorizeRoles } = require('../middleware/roleMiddleware');
 const upload = require('../utils/fileUpload');
+const multer = require("multer");
+const path = require("path");
+const fs = require('fs');
 
 // Import controllers
 const {
@@ -77,7 +80,8 @@ const {
   createAgreement,
   getAgreement,
   updateAgreement,
-  deleteAgreement
+  deleteAgreement,
+  uploadEmiProof
 } = require("../controllers/agreementDetailsController");
 
 const {
@@ -87,6 +91,38 @@ const {
   updateInterviewSchedule,
   deleteInterviewSchedule
 } = require("../controllers/interviewScheduleController");
+
+// Configure multer for proof uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    // Store temporarily in the uploads directory
+    const tempDir = path.join(__dirname, '../uploads/temp');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    cb(null, tempDir);
+  },
+  filename: function (req, file, cb) {
+    // Use a temporary name
+    cb(null, `temp-${Date.now()}${path.extname(file.originalname)}`);
+  },
+});
+
+const uploadMulter = multer({
+  storage: storage,
+  fileFilter: function (req, file, cb) {
+    const allowedTypes = [".jpg", ".jpeg", ".png", ".pdf"];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowedTypes.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only .jpg, .jpeg, .png, and .pdf files are allowed"));
+    }
+  },
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+});
 
 // Auth routes
 router.post('/auth/signup', signup);
@@ -168,6 +204,13 @@ router.post('/consultants/:consultantId/agreement', protect, authorizeRoles('sup
 router.get('/consultants/:consultantId/agreement', protect, authorizeRoles('superAdmin', 'admin', 'coordinator', 'teamLead', 'Accounts'), getAgreement);
 router.put('/consultants/:consultantId/agreement', protect, authorizeRoles('superAdmin', 'Accounts'), updateAgreement);
 router.delete('/consultants/:consultantId/agreement', protect, authorizeRoles('superAdmin'), deleteAgreement);
+router.post(
+  "/consultants/:consultantId/agreement/proof",
+  protect,
+  authorizeRoles("superAdmin", "admin", "Candidate"),
+  uploadMulter.single("proofFile"),
+  uploadEmiProof
+);
 
 // Agreement Details Routes
 router.post('/agreement-details', protect, authorizeRoles('superAdmin', 'admin', 'Accounts'), createAgreementDetails);
