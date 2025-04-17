@@ -136,6 +136,9 @@ exports.uploadDocument = async (req, res, next) => {
 exports.getAllConsultants = async (req, res, next) => {
   try {
     let whereClause = {};
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
 
     // Handle different roles
     if (req.user.role === "resumeBuilder") {
@@ -156,6 +159,10 @@ exports.getAllConsultants = async (req, res, next) => {
         ],
       };
     }
+
+    // Get total count for pagination
+    const totalCount = await Consultant.count({ where: whereClause });
+    const totalPages = Math.ceil(totalCount / limit);
 
     const consultants = await Consultant.findAll({
       where: whereClause,
@@ -194,6 +201,9 @@ exports.getAllConsultants = async (req, res, next) => {
           required: false
         }
       ],
+      limit: limit,
+      offset: offset,
+      order: [['createdAt', 'DESC']] // Order by latest first
     });
 
     // Transform the response to include coordinators as an array
@@ -239,7 +249,17 @@ exports.getAllConsultants = async (req, res, next) => {
       return consultantData;
     });
 
-    return res.status(200).json(transformedConsultants);
+    return res.status(200).json({
+      consultants: transformedConsultants,
+      pagination: {
+        currentPage: page,
+        totalPages: totalPages,
+        totalItems: totalCount,
+        itemsPerPage: limit,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1
+      }
+    });
   } catch (error) {
     console.error("Error in getAllConsultants:", error);
     next(error);
