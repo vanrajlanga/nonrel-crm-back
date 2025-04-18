@@ -4,6 +4,7 @@ const { Consultant } = require("../models/consultantModel");
 const { Op } = require("sequelize");
 const path = require("path");
 const fs = require("fs");
+const { sequelize } = require("../config/database");
 
 // Create new agreement
 exports.createAgreement = async (req, res, next) => {
@@ -264,6 +265,14 @@ exports.uploadEmiProof = async (req, res, next) => {
       });
     }
 
+    // Check if agreement is terminated
+    if (agreement.paymentCompletionStatus === "terminated") {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot upload proof as the agreement is terminated",
+      });
+    }
+
     // Check if agreement is active
     if (!jobDetails.isAgreement) {
       return res.status(400).json({
@@ -340,6 +349,14 @@ exports.updatePayment = async (req, res, next) => {
       });
     }
 
+    // Check if agreement is terminated
+    if (agreementDetails.paymentCompletionStatus === "terminated") {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot update payment as the agreement is terminated",
+      });
+    }
+
     // Check if proof is uploaded for this month
     const proofField = `month${monthNumber}Proof`;
     if (!agreementDetails[proofField]) {
@@ -391,7 +408,19 @@ exports.updateJobLostDate = async (req, res, next) => {
     const { id } = req.params;
     const { jobLostDate } = req.body;
 
-    const agreementDetails = await AgreementDetails.findByPk(id);
+    const agreementDetails = await AgreementDetails.findByPk(id, {
+      include: [
+        {
+          model: ConsultantJobDetails,
+          include: [
+            {
+              model: Consultant,
+              attributes: ["id", "fulllegalname", "jobLostCount"],
+            },
+          ],
+        },
+      ],
+    });
 
     if (!agreementDetails) {
       return res.status(404).json({
@@ -400,17 +429,82 @@ exports.updateJobLostDate = async (req, res, next) => {
       });
     }
 
-    agreementDetails.jobLostDate = jobLostDate;
-    agreementDetails.paymentCompletionStatus = "terminated";
+    // Get consultant and job details from the included relations
+    const consultant = agreementDetails.ConsultantJobDetail.Consultant;
+    const jobDetailsId = agreementDetails.consultantJobDetailsId;
+    
+    // Check if consultant has already lost job twice
+    if (consultant.jobLostCount >= 2) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot update: Consultant has already lost job maximum number of times (2)",
+        currentCount: consultant.jobLostCount
+      });
+    }
 
-    await agreementDetails.save();
+    // Start a transaction to ensure all updates are atomic
+    const t = await sequelize.transaction();
 
-    return res.status(200).json({
-      success: true,
-      message: "Job lost date updated successfully",
-      agreementDetails,
-    });
+    try {
+      // First increment job lost count
+      const updatedConsultant = await Consultant.findByPk(consultant.id);
+      await updatedConsultant.increment('jobLostCount', { transaction: t });
+      await updatedConsultant.update({
+        isPlaced: false,
+        isHold: false,
+        isActive: true,
+        isOfferPending: false
+      }, { transaction: t });
+
+      // Delete the agreement
+      await agreementDetails.destroy({ transaction: t });
+
+      // Reset job details but keep fees information
+      const jobDetails = await ConsultantJobDetails.findByPk(jobDetailsId);
+      if (jobDetails) {
+        await jobDetails.update({
+          companyName: null,
+          jobType: null,
+          dateOfOffer: null,
+          isJob: true,
+          placementStatus: "active",
+          isAgreement: false,
+          // Keep fees-related fields unchanged:
+          // totalFees, receivedFees, remainingFees, feesStatus
+        }, { transaction: t });
+      }
+
+      // Commit the transaction
+      await t.commit();
+
+      // Fetch the final state of job details for response
+      const updatedJobDetails = await ConsultantJobDetails.findByPk(jobDetailsId);
+
+      return res.status(200).json({
+        success: true,
+        message: "Job lost date updated, agreement deleted, and job details reset successfully",
+        data: {
+          consultant: {
+            id: consultant.id,
+            fullName: consultant.fulllegalname,
+            jobLostCount: updatedConsultant.jobLostCount
+          },
+          jobDetails: {
+            id: jobDetailsId,
+            feesStatus: updatedJobDetails?.feesStatus,
+            totalFees: updatedJobDetails?.totalFees,
+            receivedFees: updatedJobDetails?.receivedFees,
+            remainingFees: updatedJobDetails?.remainingFees
+          }
+        }
+      });
+    } catch (error) {
+      // Rollback transaction on error
+      await t.rollback();
+      throw error;
+    }
   } catch (error) {
+    console.error("Error in updateJobLostDate:", error);
     next(error);
   }
 };

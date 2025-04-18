@@ -7,12 +7,12 @@ const ConsultantJobDetails = sequelize.define(
   {
     jobType: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
       comment: "Type of job",
     },
     companyName: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
       comment: "Name of the company",
     },
     isJob: {
@@ -53,7 +53,7 @@ const ConsultantJobDetails = sequelize.define(
     },
     dateOfOffer: {
       type: DataTypes.DATE,
-      allowNull: false,
+      allowNull: true,
       comment: "Date when consultant received the job offer",
     },
     consultantId: {

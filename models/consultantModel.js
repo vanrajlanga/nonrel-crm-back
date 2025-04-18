@@ -258,6 +258,22 @@ const Consultant = sequelize.define(
       defaultValue: 'pending',
       allowNull: false
     },
+    jobLostCount: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+      allowNull: false,
+      validate: {
+        max: {
+          args: 2,
+          msg: "A consultant can only lose their job up to 2 times"
+        },
+        min: {
+          args: 0,
+          msg: "Job lost count cannot be negative"
+        }
+      },
+      comment: "Number of times the consultant has lost their job (max 2)"
+    }
   },
   {
     timestamps: true,
@@ -314,6 +330,25 @@ Consultant.addHook('beforeValidate', async (consultant) => {
   // If all are false, set isActive to true by default
   if (trueCount === 0) {
     consultant.isActive = true;
+  }
+});
+
+// Add hook to validate jobLostCount
+Consultant.addHook('beforeUpdate', async (consultant) => {
+  // If jobLostCount is being updated
+  if (consultant.changed('jobLostCount')) {
+    const newCount = consultant.jobLostCount;
+    
+    // Check if trying to increment beyond 2
+    if (newCount > 2) {
+      throw new Error('Cannot update: Job lost count cannot exceed 2');
+    }
+    
+    // Check if trying to decrease the count
+    const oldCount = consultant.previous('jobLostCount');
+    if (newCount < oldCount) {
+      throw new Error('Cannot update: Job lost count can only be incremented');
+    }
   }
 });
 

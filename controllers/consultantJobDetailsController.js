@@ -1,5 +1,8 @@
 const { ConsultantJobDetails } = require("../models/consultantJobDetailsModel");
 const { Consultant } = require("../models/consultantModel");
+const { InterviewSchedule } = require("../models/interviewScheduleModel");
+const { AgreementDetails } = require("../models/agreementDetailsModel");
+const { sequelize } = require("../config/database");
 
 // Create job details for a consultant
 exports.createJobDetails = async (req, res, next) => {
@@ -436,7 +439,7 @@ exports.deleteJobDetails = async (req, res, next) => {
       }
     }
 
-    // Find and delete job details
+    // Find job details
     const jobDetails = await ConsultantJobDetails.findOne({
       where: { consultantId }
     });
@@ -445,25 +448,38 @@ exports.deleteJobDetails = async (req, res, next) => {
       return res.status(404).json({ message: "Job details not found for this consultant" });
     }
 
-    // Delete the job details
-    await jobDetails.destroy();
+    // Start a transaction to ensure all operations are atomic
+    const t = await sequelize.transaction();
 
-    // Reset consultant's status and remove staff assignments
-    await consultant.update({
-      isPlaced: false,
-      isHold: false,
-      isActive: false,
-      isOfferPending: false,
-      assignedCoordinatorId: null,
-      assignedCoordinator2Id: null,
-      assignedTeamLeadId: null,
-    });
+    try {
+      // First update job details to set isJob and placementStatus
+      // This needs to be done before deletion to avoid hook interference
+      await jobDetails.update({
+        isJob: false,
+        placementStatus: null, // Set to null to avoid hooks setting isJob back to true
+        isAgreement: false
+      }, { 
+        transaction: t,
+        hooks: false // Disable hooks to prevent automatic isJob setting
+      });
 
-    return res.status(200).json({
-      message: "Job details deleted successfully and consultant status reset",
-      consultant: {
-        id: consultant.id,
-        fullName: consultant.fulllegalname,
+      // Delete associated interview schedules
+      await InterviewSchedule.destroy({
+        where: { consultantId },
+        transaction: t
+      });
+
+      // Delete associated agreement details if they exist
+      await AgreementDetails.destroy({
+        where: { consultantJobDetailsId: jobDetails.id },
+        transaction: t
+      });
+
+      // Delete the job details
+      await jobDetails.destroy({ transaction: t });
+
+      // Reset consultant's status, remove staff assignments, and reset jobLostCount
+      await consultant.update({
         isPlaced: false,
         isHold: false,
         isActive: false,
@@ -471,9 +487,36 @@ exports.deleteJobDetails = async (req, res, next) => {
         assignedCoordinatorId: null,
         assignedCoordinator2Id: null,
         assignedTeamLeadId: null,
-        assignedResumeBuilder: null
-      }
-    });
+        jobLostCount: 0 // Reset job lost count to 0
+      }, { 
+        transaction: t,
+        hooks: false // Disable hooks to prevent automatic status changes
+      });
+
+      // Commit the transaction
+      await t.commit();
+
+      return res.status(200).json({
+        message: "Job details, interview schedules, and agreement details deleted successfully. All statuses reset.",
+        consultant: {
+          id: consultant.id,
+          fullName: consultant.fulllegalname,
+          isPlaced: false,
+          isHold: false,
+          isActive: false,
+          isOfferPending: false,
+          jobLostCount: 0,
+          assignedCoordinatorId: null,
+          assignedCoordinator2Id: null,
+          assignedTeamLeadId: null,
+          assignedResumeBuilder: null
+        }
+      });
+    } catch (error) {
+      // Rollback transaction on error
+      await t.rollback();
+      throw error;
+    }
   } catch (error) {
     next(error);
   }
@@ -485,7 +528,7 @@ exports.getAllPlacedJobDetails = async (req, res, next) => {
     // Only superAdmin can access this endpoint
     if (req.user.role !== 'superAdmin' && req.user.role !== 'Accounts' && req.user.role !== 'admin') {
       return res.status(403).json({ 
-        message: "Access forbidden: Only superAdmin can view all placed consultants"
+        message: "Access forbidden: Only superAdmin, Accounts, and admin can view all job details"
       });
     }
 
@@ -500,15 +543,19 @@ exports.getAllPlacedJobDetails = async (req, res, next) => {
       "createdByName",
       "totalFees",
       "receivedFees",
-      "remainingFees"
+      "remainingFees",
+      "isJob",
+      "placementStatus"
     ];
 
     const allJobDetails = await ConsultantJobDetails.findAll({
+      where: {
+        isJob: true // Changed from checking isPlaced to checking isJob
+      },
       include: [
         {
           model: Consultant,
-          attributes: ["fulllegalname", "email", "isPlaced", "paymentStatus"],
-          where: { isPlaced: true } // Only get placed consultants
+          attributes: ["fulllegalname", "email", "isPlaced", "paymentStatus", "isHold", "isActive", "isOfferPending"],
         },
       ],
       attributes,
@@ -524,7 +571,14 @@ exports.getAllPlacedJobDetails = async (req, res, next) => {
       dateOfOffer: jobDetail.dateOfOffer,
       feesStatus: jobDetail.feesStatus,
       isAgreement: jobDetail.isAgreement,
-      isPlaced: jobDetail.Consultant.isPlaced,
+      isJob: jobDetail.isJob,
+      placementStatus: jobDetail.placementStatus,
+      consultantStatus: {
+        isPlaced: jobDetail.Consultant.isPlaced,
+        isHold: jobDetail.Consultant.isHold,
+        isActive: jobDetail.Consultant.isActive,
+        isOfferPending: jobDetail.Consultant.isOfferPending
+      },
       paymentStatus: jobDetail.Consultant.paymentStatus,
       createdBy: {
         id: jobDetail.createdBy,
@@ -746,6 +800,136 @@ exports.resetFees = async (req, res, next) => {
 
   } catch (error) {
     console.error("Error in resetFees:", error);
+    next(error);
+  }
+};
+
+// Update job details after job lost
+exports.updateAfterJobLost = async (req, res, next) => {
+  try {
+    const { consultantId } = req.params;
+    const { companyName, jobType, dateOfOffer } = req.body;
+
+    // Validate required fields
+    if (!companyName || !jobType || !dateOfOffer) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields",
+        required: {
+          companyName: "Name of the new company",
+          jobType: "Position/job type",
+          dateOfOffer: "Date of the new offer (YYYY-MM-DD)"
+        }
+      });
+    }
+
+    // Find the consultant
+    const consultant = await Consultant.findByPk(consultantId);
+    if (!consultant) {
+      return res.status(404).json({ 
+        success: false,
+        message: "Consultant not found" 
+      });
+    }
+
+    // Find existing job details
+    const jobDetails = await ConsultantJobDetails.findOne({
+      where: { consultantId }
+    });
+
+    if (!jobDetails) {
+      return res.status(404).json({ 
+        success: false,
+        message: "Job details not found for this consultant" 
+      });
+    }
+
+    // Start a transaction
+    const t = await sequelize.transaction();
+
+    try {
+      // Update job details with new company information
+      await jobDetails.update({
+        companyName,
+        jobType,
+        dateOfOffer,
+        isJob: true,
+        placementStatus: "active",
+        isAgreement: false
+        // Keep fees-related fields unchanged:
+        // totalFees, receivedFees, remainingFees, feesStatus
+      }, { 
+        transaction: t,
+        hooks: false // Disable hooks temporarily
+      });
+
+      // Update consultant status
+      await consultant.update({
+        isPlaced: false,
+        isHold: false,
+        isActive: true,
+        isOfferPending: false
+      }, { 
+        transaction: t,
+        hooks: false
+      });
+
+      // Re-enable hooks with a separate update to ensure proper status handling
+      await jobDetails.update({}, { 
+        transaction: t,
+        hooks: true 
+      });
+
+      await t.commit();
+
+      // Fetch updated job details with consultant info
+      const updatedJobDetails = await ConsultantJobDetails.findOne({
+        where: { consultantId },
+        include: [
+          {
+            model: Consultant,
+            attributes: ["id", "fulllegalname", "email", "jobLostCount", "isPlaced", "isHold", "isActive", "isOfferPending"]
+          }
+        ]
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: "Job details updated successfully with new company information",
+        data: {
+          jobDetails: {
+            id: updatedJobDetails.id,
+            companyName: updatedJobDetails.companyName,
+            position: updatedJobDetails.jobType,
+            dateOfOffer: updatedJobDetails.dateOfOffer,
+            isJob: updatedJobDetails.isJob,
+            placementStatus: updatedJobDetails.placementStatus,
+            isAgreement: updatedJobDetails.isAgreement,
+            feesStatus: updatedJobDetails.feesStatus,
+            totalFees: updatedJobDetails.totalFees,
+            receivedFees: updatedJobDetails.receivedFees,
+            remainingFees: updatedJobDetails.remainingFees
+          },
+          consultant: {
+            id: updatedJobDetails.Consultant.id,
+            fullName: updatedJobDetails.Consultant.fulllegalname,
+            email: updatedJobDetails.Consultant.email,
+            jobLostCount: updatedJobDetails.Consultant.jobLostCount,
+            status: {
+              isPlaced: updatedJobDetails.Consultant.isPlaced,
+              isHold: updatedJobDetails.Consultant.isHold,
+              isActive: updatedJobDetails.Consultant.isActive,
+              isOfferPending: updatedJobDetails.Consultant.isOfferPending
+            }
+          }
+        }
+      });
+    } catch (error) {
+      await t.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error("Error in updateAfterJobLost:", error);
     next(error);
   }
 };
